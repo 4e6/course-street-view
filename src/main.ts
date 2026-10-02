@@ -5,6 +5,7 @@ import { formatDistance, formatGrade, formatImageDate } from "./format.ts"
 import { parseGpx } from "./gpx.ts"
 import { activeKey, builtInKey, loadMaps, setUserKey, userKey } from "./maps.ts"
 import { CourseMap } from "./mapview.ts"
+import { once } from "./once.ts"
 import { Profile } from "./profile.ts"
 import { Rider, type RiderState, toLatLng } from "./rider.ts"
 import { load, save } from "./storage.ts"
@@ -152,27 +153,47 @@ async function main(): Promise<void> {
     return
   }
 
-  // Created once and reused for every course: each new panorama object is a
-  // billable Dynamic Street View load, while moving this one is not.
-  const pano = new google.maps.StreetViewPanorama($("pano"), {
-    visible: false,
-    addressControl: false,
-    fullscreenControl: false,
-    enableCloseButton: false,
-    motionTracking: false,
-    motionTrackingControl: false,
-    showRoadLabels: true,
-    linksControl: true,
-    clickToGo: true,
-  })
-  const service = new google.maps.StreetViewService()
-
   let course: Course | null = null
   let cancelScan = () => {}
   const savePosition = throttle((s: number) => save(POSITION_KEY, Math.round(s)), 1000)
+  const speed = { index: load<number>(SPEED_KEY) ?? 1 }
+
+  // The billable Google objects — the map and the Street View panorama — are
+  // built on the first course, not on page load, so a visitor who lands on
+  // the "choose a GPX" screen and leaves costs nothing. Built once and reused
+  // for every course after: each new panorama object is a billable Dynamic
+  // Street View load, while moving this one is not.
+  const viewer = once(() => {
+    const pano = new google.maps.StreetViewPanorama($("pano"), {
+      visible: false,
+      addressControl: false,
+      fullscreenControl: false,
+      enableCloseButton: false,
+      motionTracking: false,
+      motionTrackingControl: false,
+      showRoadLabels: true,
+      linksControl: true,
+      clickToGo: true,
+    })
+    const service = new google.maps.StreetViewService()
+    const rider = new Rider(pano, service, (state) => render(state))
+    const courseMap = new CourseMap($("map"), (p) => {
+      if (!course) return
+      rider.pause()
+      void rider.goTo(course.locate(p).s)
+    })
+    pano.addListener("pov_changed", () => courseMap.setHeading(pano.getPov().heading ?? 0))
+    // For poking at from the console during development; stripped from builds.
+    if (import.meta.env.DEV) Object.assign(window, { pano, rider })
+    return { pano, service, rider, courseMap }
+  })
+  // Only reachable once a course is loaded: every control that moves along
+  // the course is hidden or inert until then.
+  const rider = () => viewer().rider
 
   const render = (state: Readonly<RiderState>) => {
     if (!course) return
+    const { pano, courseMap } = viewer()
     $("hud-distance").textContent = `${formatDistance(state.s)} / ${formatDistance(course.length)}`
     const ele = course.elevationAt(state.s)
     $("hud-elevation").textContent = ele === null ? "" : `${Math.round(ele)} m`
@@ -203,37 +224,30 @@ async function main(): Promise<void> {
     savePosition(state.s)
   }
 
-  const rider = new Rider(pano, service, render)
-  // For poking at from the console during development; stripped from builds.
-  if (import.meta.env.DEV) Object.assign(window, { pano, rider })
-  const speed = { index: load<number>(SPEED_KEY) ?? 1 }
   const applySpeed = () => {
     const s = SPEEDS[speed.index] ?? SPEEDS[1]!
-    rider.interval = s.interval
     $("speed").textContent = s.label
+    return s.interval
   }
   applySpeed()
 
-  const courseMap = new CourseMap($("map"), (p) => {
-    if (!course) return
-    rider.pause()
-    void rider.goTo(course.locate(p).s)
-  })
-  const scrub = throttle((s: number) => void rider.goTo(s), 250)
+  const scrub = throttle((s: number) => void rider().goTo(s), 250)
   const profile = new Profile($("profile"), {
     onScrub(s) {
-      rider.pause()
+      rider().pause()
       scrub(s)
     },
     onCommit(s) {
       scrub.cancel()
-      void rider.goTo(s)
+      void rider().goTo(s)
     },
   })
-  pano.addListener("pov_changed", () => courseMap.setHeading(pano.getPov().heading ?? 0))
 
   const loadCourse = async (name: string | null, points: CoursePoint[], s = 0) => {
+    // Parsed before anything billable is built, so a broken file costs nothing.
     const next = new Course(points)
+    const { service, courseMap, rider } = viewer()
+    rider.interval = applySpeed()
     course = next
     $("course-name").textContent = name ?? "Untitled course"
     document.title = name ? `${name} · Course Street View` : "Course Street View"
@@ -298,13 +312,13 @@ async function main(): Promise<void> {
 
   // Ride controls.
   const step = async (dir: 1 | -1) => {
-    rider.pause()
-    const result = await rider.step(dir)
+    rider().pause()
+    const result = await rider().step(dir)
     if (result === "end") toast(dir > 0 ? "That's the finish." : "That's the start.")
   }
   const togglePlay = () => {
-    if (rider.current.playing) rider.pause()
-    else rider.play()
+    if (rider().current.playing) rider().pause()
+    else rider().play()
   }
   $("step-forward").addEventListener("click", () => void step(1))
   $("step-back").addEventListener("click", () => void step(-1))
@@ -312,9 +326,9 @@ async function main(): Promise<void> {
   $("speed").addEventListener("click", () => {
     speed.index = (speed.index + 1) % SPEEDS.length
     save(SPEED_KEY, speed.index)
-    applySpeed()
+    rider().interval = applySpeed()
   })
-  $("back-to-course").addEventListener("click", () => void rider.goTo(rider.current.s))
+  $("back-to-course").addEventListener("click", () => void rider().goTo(rider().current.s))
 
   document.addEventListener("keydown", (e) => {
     if (!course || e.metaKey || e.ctrlKey || e.altKey) return

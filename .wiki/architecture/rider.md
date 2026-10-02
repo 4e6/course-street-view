@@ -5,7 +5,7 @@ description: Keeps the one Street View panorama and the position s in step, whic
 tags: [street-view, navigation]
 timestamp: 2026-10-02T12:10:56Z
 sources: [src/rider.ts, src/main.ts, tests/fake-street-view.ts]
-source_commit: c41e82b3f15fb41a98924a5632029d4dc58cbff8
+source_commit: f0cd6cc9beaf7f57e8d5ef27012b57531af751ae
 ---
 
 # Responsibility
