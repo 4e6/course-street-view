@@ -72,7 +72,7 @@ Requires [Bun](https://bun.sh).
 
 ```sh
 bun install
-cp .env.example .env.local   # then put your key in it
+cp .env.example .env         # then put your key in it
 bun run dev                  # http://localhost:5173
 bun run check                # lint, typecheck, tests
 bun run build                # static site in dist/
