@@ -50,14 +50,14 @@ export function scanCoverage(
 
   const check = async (i: number) => {
     const at = course.pointAt(i * SPACING)
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; ; attempt++) {
       try {
         return (await findPanorama(service, at, RADIUS)) !== null
       } catch {
+        if (attempt === 1) return undefined
         await new Promise((r) => setTimeout(r, 2000))
       }
     }
-    return undefined
   }
 
   const worker = async () => {

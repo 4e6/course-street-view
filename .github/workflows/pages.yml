@@ -1,47 +1,49 @@
-# Checks every pull request; on main, also builds the site and publishes it to
-# GitHub Pages. The Maps key comes from the GOOGLE_MAPS_API_KEY repository
-# secret and ends up in the public bundle, which is how browser Maps keys work:
-# its protection is the HTTP-referrer restriction set in Google Cloud, not
-# secrecy (see README). Without the secret the site still deploys, and
-# visitors bring their own key.
+# Builds the site and publishes it to GitHub Pages on every push to main.
+# Pull requests are checked by ci.yml instead.
+#
+# The Maps key comes from the GOOGLE_MAPS_API_KEY repository secret and ends up
+# in the public bundle, which is how browser Maps keys work: its protection is
+# the HTTP-referrer restriction set in Google Cloud, not secrecy (see README).
+# Without the secret the site still deploys, and visitors bring their own key.
 name: Pages
 
 on:
   push:
     branches: [main]
-  pull_request:
   workflow_dispatch:
 
+# One deployment at a time; a newer push queues behind a running one rather
+# than cancelling a half-finished deployment.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: pages
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  check:
-    name: lint · typecheck · test · build
+  build:
+    name: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
       - run: bun install --frozen-lockfile
+      # Repeated from ci.yml so that a red main cannot deploy, whatever order
+      # the two workflows finish in.
       - run: bun run check
       - run: bun run build
         env:
           VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
-      - if: github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
   deploy:
     name: publish
-    if: github.event_name != 'pull_request'
-    needs: check
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -51,4 +53,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
