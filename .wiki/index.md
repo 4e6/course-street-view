@@ -13,4 +13,4 @@ okf_version: "0.1"
 * [Domain](domain/) - Vocabulary as this project uses it
 * [Gotchas](gotchas/) - Things that cost an afternoon: nearest-panorama flicker, CSS against Google's DOM, hidden-tab testing
 * [Integrations](integrations/) - Google Maps Platform: costs, caps, the GCP project and lookup quirks
-* [Questions](questions/) - What is still unknown
+* [Questions](questions/) - What was unknown, and how it was answered; none open

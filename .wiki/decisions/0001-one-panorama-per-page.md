@@ -43,6 +43,10 @@ position and every course, moving it with `setPano`.
 > first course rather than on arrival, so a session that never opens one costs
 > nothing. The decision itself — one panorama, re-pointed — is unchanged.
 > Current cost model: [Google Maps Platform](/integrations/google-maps-platform.md).
+>
+> **Note, 2026-10-02.** The unverified assumption above has been measured:
+> moving the panorama with `setPano` counted 0 against the billable quota —
+> see [the answered question](/questions/is-programmatic-setpano-billed.md).
 
 # Citations
 
