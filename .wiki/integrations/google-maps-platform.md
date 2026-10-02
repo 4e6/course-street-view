@@ -3,7 +3,7 @@ type: Integration
 title: Google Maps Platform
 description: How the app is billed, capped and protected by Google — what costs money, what is free, the GCP project behind the key, and the quirks of Street View lookups found in testing.
 tags: [google, billing, street-view, api-key]
-timestamp: 2026-10-02T11:16:31Z
+timestamp: 2026-10-02T12:31:45Z
 ---
 
 # What costs money
@@ -17,8 +17,12 @@ timestamp: 2026-10-02T11:16:31Z
 Interactive Street View is billed **per panorama object**, not per image
 shown: the billable event is instantiating it. Each *new* panorama object is
 another load; the same object showing a thousand positions is one. The app
-creates one map and one panorama per page load, so **a page load is the unit
-of cost** — see [one panorama per page](/decisions/0001-one-panorama-per-page.md).
+creates one map and one panorama per page load **that opens a course** —
+chosen, or restored from the last visit — and reuses them for every course
+after. So **a session that opens a course is the unit of cost**, and a
+visitor who leaves the "choose a GPX" screen without opening one costs
+nothing: the Maps script loads, but loading it is not billed. See
+[one panorama per page](/decisions/0001-one-panorama-per-page.md).
 The Static API, by contrast, bills every frame: a 100 km course at one image
 per 20 m is ~5,000 images.
 

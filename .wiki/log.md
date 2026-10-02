@@ -1,5 +1,6 @@
 # Wiki Update Log
 
 ## 2026-10-02
+* **Update**: The map and Street View panorama are now created on the first course, not on page load — [Google Maps Platform](/integrations/google-maps-platform.md) cost model rewritten, a dated note added to [decision 0001](/decisions/0001-one-panorama-per-page.md), and the [setPano question](/questions/is-programmatic-setpano-billed.md)'s method adjusted.
 * **Update**: [Rider](/architecture/rider.md) now describes how it is tested — the fake Street View, the mutation check the suite passed, and what the fake cannot vouch for.
 * **Initialization**: Bundle created alongside the first working version — [overview](/overview.md), the [Course](/architecture/course.md) and [Rider](/architecture/rider.md) modules, the [one panorama per page](/decisions/0001-one-panorama-per-page.md) decision, the [Google Maps Platform](/integrations/google-maps-platform.md) integration with the billing, terms, quota and lookup findings from setup and testing, three gotchas from testing, and one open question on `setPano` billing. Pages with `sources` are not yet pinned: the repository had no commits.

@@ -38,6 +38,12 @@ position and every course, moving it with `setPano`.
 * Whether a *programmatic* `setPano` is free is Google's docs' implication, not
   something verified — see [the open question](/questions/is-programmatic-setpano-billed.md).
 
+> **Note, 2026-10-02.** "Per page load" and "a whole session" above now mean a
+> page load that opens a course: the panorama and the map are created on the
+> first course rather than on arrival, so a session that never opens one costs
+> nothing. The decision itself — one panorama, re-pointed — is unchanged.
+> Current cost model: [Google Maps Platform](/integrations/google-maps-platform.md).
+
 # Citations
 
 [1] [Google Maps Platform SKU details](https://developers.google.com/maps/billing-and-pricing/sku-details)
