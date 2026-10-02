@@ -3,7 +3,7 @@ type: Integration
 title: Google Maps Platform
 description: How the app is billed, capped and protected by Google — what costs money, what is free, the GCP project behind the key, and the quirks of Street View lookups found in testing.
 tags: [google, billing, street-view, api-key]
-timestamp: 2026-10-02T12:31:45Z
+timestamp: 2026-10-02T13:30:58Z
 ---
 
 # What costs money
@@ -15,8 +15,10 @@ timestamp: 2026-10-02T12:31:45Z
 | Each image from the Street View **Static** API | Static Street View | 10,000 | ~$7 / 1,000 |
 
 Interactive Street View is billed **per panorama object**, not per image
-shown: the billable event is instantiating it. Each *new* panorama object is
-another load; the same object showing a thousand positions is one. The app
+shown. Each *new* panorama object is another load; the same object showing a
+thousand positions is one. Measured: the load is counted when the object shows
+its **first panorama** — constructing a hidden one that shows nothing counted
+0. The app
 creates one map and one panorama per page load **that opens a course** —
 chosen, or restored from the last visit — and reuses them for every course
 after. So **a session that opens a course is the unit of cost**, and a
@@ -32,25 +34,36 @@ per 20 m is ~5,000 images.
   coverage scanning and imagery dates are all built on it.
 * Moving within a panorama **as a user** — arrows, click-to-go, panning,
   zooming — per Google's docs.
-* Whether moving it **from code** (`setPano`) is also free is implied rather
-  than documented, and unverified: see
-  [the open question](/questions/is-programmatic-setpano-billed.md).
+* Moving it **from code** with `setPano` — measured: five course switches, each
+  moving the panorama to new imagery, counted 0 against the billable quota.
+  See [the question that asked](/questions/is-programmatic-setpano-billed.md).
 
 # Cap and alerts — and what they do not cover
 
-* **Quota:** "Map loads" per day is overridden to **600** (about 300 page
-  loads). Lowering a quota that far needs `force=true`; Google refuses a
-  decrease of more than 10% without it.
-* **Street View has no quota.** The Maps JavaScript API exposes only
-  "Map loads", "3D Map loads" and a grounding-widget quota. Cloud Monitoring
-  for the project showed only map loads (method `loadMap`,
-  `google.maps.BaseMap.Javascript`) — no Street View at all. So the daily cap
-  does not limit Street View spend, and if the map's quota is exhausted the
-  panorama is still created.
+* **Quota:** "Map loads" per day is overridden to **600**. Lowering a quota
+  that far needs `force=true`; Google refuses a decrease of more than 10%
+  without it.
+* **"Map loads" counts Street View too.** There is no separate Street View
+  quota; a panorama's load is counted against "Map loads" and reported under
+  the same name as a map's (method `loadMap`, `google.maps.BaseMap.Javascript`,
+  quota metric `billable_default`). Measured minute by minute: a map counted 1,
+  a panorama showing imagery counted 1, and a page load that opens a course
+  counted 2. So the cap limits both, at about **300 sessions that open a
+  course** per day.
 * **Budget alert:** "Course Street View EUR 1" on the billing account,
   filtered to this project: e-mails at 50% and 100% of actual spend and 100% of
   forecast. It alerts; it does not stop anything. The billing account is in
   EUR, so budgets must be too.
+
+# Measuring usage
+
+Cloud Monitoring's `serviceruntime.googleapis.com/api/request_count` and
+`quota/rate/net_usage` for `maps-backend.googleapis.com` show loads within a
+few minutes. Read them **per minute, from raw points**: an aggregation with a
+long alignment period (say an hour) fills its first bucket from before the
+requested start time, so "since 12:33" silently includes the hour before.
+Every origin sharing the key — localhost and the live site — lands in the same
+numbers, so a measurement needs nobody else using the app.
 
 # Terms that shape the app
 
