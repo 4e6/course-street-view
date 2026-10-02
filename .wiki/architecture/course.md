@@ -5,6 +5,7 @@ description: The course as geometry — distance along it, points, headings, gra
 tags: [geometry, gpx]
 timestamp: 2026-10-02T11:05:28Z
 sources: [src/course.ts, src/geo.ts, src/gpx.ts]
+source_commit: c41e82b3f15fb41a98924a5632029d4dc58cbff8
 ---
 
 # Responsibility
