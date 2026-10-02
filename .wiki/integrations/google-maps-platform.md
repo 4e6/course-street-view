@@ -64,7 +64,7 @@ per 20 m is ~5,000 images.
 * Key "Course Street View (web)": referrers `https://4e6.github.io/*` and
   `http://localhost:5173/*`; API restricted to the Maps JavaScript API
   (`maps-backend.googleapis.com`). Local development reads it from
-  `.env.local`; deployment from the `GOOGLE_MAPS_API_KEY` repository secret.
+  `.env` (git-ignored); deployment from the `GOOGLE_MAPS_API_KEY` repository secret.
 * A new origin (another dev port, a custom domain) must be added to the
   referrers or Google rejects the key on that page.
 
