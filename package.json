@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Ride a GPX course in Google Street View, with the map and elevation profile below.",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

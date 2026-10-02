@@ -87,3 +87,9 @@ bun run build                # static site in dist/
 
 Every push to `main` runs the checks and publishes
 `https://<user>.github.io/<repo>/`.
+
+## License
+
+[MIT](LICENSE). Google Maps and Street View content shown by the app is
+Google's and remains under the
+[Google Maps Platform Terms](https://cloud.google.com/maps-platform/terms).
