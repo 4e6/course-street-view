@@ -24,7 +24,7 @@
       "preset": "recommended",
       "style": {
         "noNonNullAssertion": "error",
-        "noDescendingSpecificity": "off"
+        "noDescendingSpecificity": "error"
       }
     }
   },

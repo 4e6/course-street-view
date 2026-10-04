@@ -364,6 +364,7 @@ body {
   background: #222;
 }
 
+/* biome-ignore lint/style/noDescendingSpecificity: map markers are never inside .button, so it cannot reach the same svg as `.button.round.big svg` */
 .marker-you svg {
   display: block;
   width: 44px;
