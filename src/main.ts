@@ -15,11 +15,8 @@ const POSITION_KEY = "csv.position"
 const SPLIT_KEY = "csv.split"
 const SPEED_KEY = "csv.speed"
 
-const SPEEDS = [
-  { label: "½×", interval: 2000 },
-  { label: "1×", interval: 1000 },
-  { label: "2×", interval: 500 },
-]
+const NORMAL_SPEED = { label: "1×", interval: 1000 }
+const SPEEDS = [{ label: "½×", interval: 2000 }, NORMAL_SPEED, { label: "2×", interval: 500 }]
 
 interface SavedCourse {
   name: string | null
@@ -35,9 +32,9 @@ function throttle<A extends unknown[]>(fn: (...args: A) => void, ms: number) {
   const run = () => {
     last = Date.now()
     timer = undefined
-    const args = pending!
+    const args = pending
     pending = null
-    fn(...args)
+    if (args) fn(...args)
   }
   const throttled = (...args: A) => {
     pending = args
@@ -225,7 +222,7 @@ async function main(): Promise<void> {
   }
 
   const applySpeed = () => {
-    const s = SPEEDS[speed.index] ?? SPEEDS[1]!
+    const s = SPEEDS[speed.index] ?? NORMAL_SPEED
     $("speed").textContent = s.label
     return s.interval
   }

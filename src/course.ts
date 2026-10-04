@@ -1,3 +1,4 @@
+import { nth } from "./assert.ts"
 import { angleDiff, bearing, distance, type LatLng, lerp, projectOntoSegment } from "./geo.ts"
 
 export interface CoursePoint extends LatLng {
@@ -51,14 +52,24 @@ export class Course {
     const cum = [0]
     const segBearing: number[] = []
     for (let i = 1; i < kept.length; i++) {
-      cum.push(cum[i - 1]! + distance(kept[i - 1]!, kept[i]!))
-      segBearing.push(bearing(kept[i - 1]!, kept[i]!))
+      const from = nth(kept, i - 1)
+      const to = nth(kept, i)
+      cum.push(nth(cum, i - 1) + distance(from, to))
+      segBearing.push(bearing(from, to))
     }
     this.points = kept
     this.cum = cum
     this.segBearing = segBearing
-    this.length = cum[cum.length - 1]!
+    this.length = nth(cum, cum.length - 1)
     this.hasElevation = kept.filter((p) => p.ele !== null).length >= kept.length / 2
+  }
+
+  private pointOf(i: number): CoursePoint {
+    return nth(this.points, i)
+  }
+
+  private cumAt(i: number): number {
+    return nth(this.cum, i)
   }
 
   clamp(s: number): number {
@@ -71,7 +82,7 @@ export class Course {
     let hi = this.cum.length - 2
     while (lo < hi) {
       const mid = (lo + hi + 1) >> 1
-      if (this.cum[mid]! <= s) lo = mid
+      if (this.cumAt(mid) <= s) lo = mid
       else hi = mid - 1
     }
     return lo
@@ -80,10 +91,8 @@ export class Course {
   pointAt(s: number): LatLng {
     s = this.clamp(s)
     const i = this.segmentAt(s)
-    const a = this.points[i]!
-    const b = this.points[i + 1]!
-    const len = this.cum[i + 1]! - this.cum[i]!
-    return lerp(a, b, len === 0 ? 0 : (s - this.cum[i]!) / len)
+    const len = this.cumAt(i + 1) - this.cumAt(i)
+    return lerp(this.pointOf(i), this.pointOf(i + 1), len === 0 ? 0 : (s - this.cumAt(i)) / len)
   }
 
   /** The stretch of course from `from` to `to` metres, as a polyline. */
@@ -91,8 +100,8 @@ export class Course {
     from = this.clamp(from)
     to = this.clamp(to)
     const out = [this.pointAt(from)]
-    for (let i = this.segmentAt(from) + 1; i < this.points.length && this.cum[i]! < to; i++) {
-      out.push(this.points[i]!)
+    for (let i = this.segmentAt(from) + 1; i < this.points.length && this.cumAt(i) < to; i++) {
+      out.push(this.pointOf(i))
     }
     out.push(this.pointAt(to))
     return out
@@ -103,11 +112,11 @@ export class Course {
     if (!this.hasElevation) return null
     s = this.clamp(s)
     const i = this.segmentAt(s)
-    const a = this.points[i]!.ele
-    const b = this.points[i + 1]!.ele
+    const a = this.pointOf(i).ele
+    const b = this.pointOf(i + 1).ele
     if (a === null || b === null) return a ?? b
-    const len = this.cum[i + 1]! - this.cum[i]!
-    return len === 0 ? a : a + (b - a) * ((s - this.cum[i]!) / len)
+    const len = this.cumAt(i + 1) - this.cumAt(i)
+    return len === 0 ? a : a + (b - a) * ((s - this.cumAt(i)) / len)
   }
 
   /**
@@ -163,12 +172,10 @@ export class Course {
     let best: Located = { s: 0, dist: Number.POSITIVE_INFINITY }
     let bestScore = Number.POSITIVE_INFINITY
     for (let i = first; i <= last; i++) {
-      const a = this.points[i]!
-      const b = this.points[i + 1]!
-      const { t, dist } = projectOntoSegment(p, a, b)
-      const s = this.cum[i]! + t * (this.cum[i + 1]! - this.cum[i]!)
+      const { t, dist } = projectOntoSegment(p, this.pointOf(i), this.pointOf(i + 1))
+      const s = this.cumAt(i) + t * (this.cumAt(i + 1) - this.cumAt(i))
       let score = dist
-      if (travel !== undefined && angleDiff(this.segBearing[i]!, travel) > 90) {
+      if (travel !== undefined && angleDiff(nth(this.segBearing, i), travel) > 90) {
         score += AGAINST_TRAVEL_PENALTY
       }
       if (near !== undefined) score += Math.abs(s - near) * AWAY_FROM_NEAR_PENALTY

@@ -32,6 +32,15 @@ const LINK_MAX_HOPS = 4
 // view only changes year when no arrow from the same capture goes the right way.
 const OTHER_CAPTURE_PENALTY = 25
 
+/** Panorama data that says where it is, which is all the rider ever shows. */
+type LocatedPanorama = google.maps.StreetViewPanoramaData & {
+  location: google.maps.StreetViewLocation & { latLng: google.maps.LatLng }
+}
+
+function isLocated(data: google.maps.StreetViewPanoramaData): data is LocatedPanorama {
+  return !!data.location?.pano && !!data.location.latLng
+}
+
 export function toLatLng(p: google.maps.LatLng): LatLng {
   return { lat: p.lat(), lng: p.lng() }
 }
@@ -45,7 +54,7 @@ export async function findPanorama(
   service: google.maps.StreetViewService,
   location: LatLng,
   radius: number,
-): Promise<google.maps.StreetViewPanoramaData | null> {
+): Promise<LocatedPanorama | null> {
   try {
     const { data } = await service.getPanorama({
       location,
@@ -53,7 +62,7 @@ export async function findPanorama(
       preference: google.maps.StreetViewPreference.NEAREST,
       sources: [google.maps.StreetViewSource.GOOGLE, google.maps.StreetViewSource.OUTDOOR],
     })
-    return data.location?.pano && data.location.latLng ? data : null
+    return isLocated(data) ? data : null
   } catch (e) {
     if ((e as { code?: string }).code === google.maps.StreetViewStatus.ZERO_RESULTS) return null
     throw e
@@ -121,8 +130,8 @@ export class Rider {
       this.update({ offCourse: null, imageDate: null, noImagery: "here" })
       return
     }
-    const hit = course.locate(toLatLng(data.location!.latLng!), { near: s })
-    this.show(data, hit.s)
+    const hit = course.locate(toLatLng(data.location.latLng), { near: s })
+    this.show(course, data, hit.s)
   }
 
   /**
@@ -143,7 +152,7 @@ export class Rider {
     const my = ++this.seq
 
     if (current && this.state.offCourse === null) {
-      const linked = await this.followLink(dir, start, current, my)
+      const linked = await this.followLink(course, dir, start, current, my)
       if (linked) return linked
     }
 
@@ -151,11 +160,11 @@ export class Rider {
       const target = course.clamp(start + dir * offset)
       const data = await this.find(course.pointAt(target), 25)
       if (my !== this.seq) return "stale"
-      if (data && data.location!.pano !== current) {
-        const hit = course.locate(toLatLng(data.location!.latLng!), { near: target })
+      if (data && data.location.pano !== current) {
+        const hit = course.locate(toLatLng(data.location.latLng), { near: target })
         // The nearest panorama can sit behind us, or on a road crossing the course.
         if ((hit.s - start) * dir > 1 && hit.dist <= OFF_COURSE) {
-          this.show(data, hit.s)
+          this.show(course, data, hit.s)
           return "moved"
         }
       }
@@ -191,6 +200,7 @@ export class Rider {
 
   /** Moves through the arrows that best match the course, if any do. */
   private async followLink(
+    course: Course,
     dir: 1 | -1,
     start: number,
     current: string,
@@ -198,42 +208,44 @@ export class Rider {
   ): Promise<StepResult | null> {
     let from = current
     let at = start
-    let reached: { data: google.maps.StreetViewPanoramaData; s: number } | null = null
+    let reached: { data: LocatedPanorama; s: number } | null = null
     for (let hop = 0; hop < LINK_MAX_HOPS && (at - start) * dir < MIN_ADVANCE; hop++) {
-      const next = await this.nextByLink(dir, at, from)
+      const next = await this.nextByLink(course, dir, at, from)
       if (my !== this.seq) return "stale"
       if (!next) break
       reached = next
-      from = next.data.location!.pano
+      from = next.data.location.pano
       at = next.s
     }
     if (!reached) return null
-    this.show(reached.data, reached.s)
+    this.show(course, reached.data, reached.s)
     return "moved"
   }
 
   /** The panorama behind the arrow from `from` that leads along the course, if one does. */
   private async nextByLink(
+    course: Course,
     dir: 1 | -1,
     at: number,
     from: string,
-  ): Promise<{ data: google.maps.StreetViewPanoramaData; s: number } | null> {
-    const course = this.course!
+  ): Promise<{ data: LocatedPanorama; s: number } | null> {
     const here = await this.byId(from)
     const want =
       dir > 0 ? course.headingAt(at) : (course.headingAt(Math.max(0, at - 30)) + 180) % 360
-    const links = (here?.links ?? []).filter(
-      (l) => l.pano && l.heading != null && angleDiff(l.heading, want) <= LINK_MAX_ANGLE,
+    const arrows = (here?.links ?? []).flatMap((l) =>
+      l.pano && l.heading != null && angleDiff(l.heading, want) <= LINK_MAX_ANGLE
+        ? [{ pano: l.pano, heading: l.heading }]
+        : [],
     )
     const candidates = await Promise.all(
-      links.map(async (l) => ({ link: l, data: await this.byId(l.pano!) })),
+      arrows.map(async (a) => ({ heading: a.heading, data: await this.byId(a.pano) })),
     )
     const rank = (c: (typeof candidates)[number]) =>
-      angleDiff(c.link.heading!, want) +
+      angleDiff(c.heading, want) +
       (c.data?.imageDate === here?.imageDate ? 0 : OTHER_CAPTURE_PENALTY)
     candidates.sort((a, b) => rank(a) - rank(b))
     for (const { data } of candidates) {
-      if (!data?.location?.latLng) continue
+      if (!data) continue
       const hit = course.locate(toLatLng(data.location.latLng), { near: at, travel: want })
       if ((hit.s - at) * dir > 1 && hit.dist <= OFF_COURSE) return { data, s: hit.s }
     }
@@ -251,13 +263,13 @@ export class Rider {
 
   // Panorama data never changes for an id, and arrows lead back and forth
   // between the same few panoramas, so lookups by id are cached per course.
-  private readonly byIdCache = new Map<string, Promise<google.maps.StreetViewPanoramaData | null>>()
+  private readonly byIdCache = new Map<string, Promise<LocatedPanorama | null>>()
 
-  private byId(pano: string): Promise<google.maps.StreetViewPanoramaData | null> {
+  private byId(pano: string): Promise<LocatedPanorama | null> {
     let data = this.byIdCache.get(pano)
     if (!data) {
       data = this.service.getPanorama({ pano }).then(
-        (r) => (r.data.location?.latLng ? r.data : null),
+        (r) => (isLocated(r.data) ? r.data : null),
         () => null,
       )
       this.byIdCache.set(pano, data)
@@ -265,11 +277,10 @@ export class Rider {
     return data
   }
 
-  private show(data: google.maps.StreetViewPanoramaData, s: number): void {
-    const course = this.course!
-    const id = data.location!.pano
+  private show(course: Course, data: LocatedPanorama, s: number): void {
+    const id = data.location.pano
     this.expectedPano = id
-    this.lastPos = toLatLng(data.location!.latLng!)
+    this.lastPos = toLatLng(data.location.latLng)
     if (this.pano.getPano() !== id) this.pano.setPano(id)
     this.pano.setPov({ heading: course.headingAt(s), pitch: this.pano.getPov().pitch ?? 0 })
     this.pano.setVisible(true)
