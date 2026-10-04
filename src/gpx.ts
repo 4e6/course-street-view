@@ -22,8 +22,8 @@ export function parseGpx(text: string): ParsedGpx {
   const track: CoursePoint[] = []
   const route: CoursePoint[] = []
   for (const m of text.matchAll(POINT)) {
-    const lat = Number(LAT.exec(m[2]!)?.[1])
-    const lng = Number(LON.exec(m[2]!)?.[1])
+    const lat = Number(LAT.exec(m[2] ?? "")?.[1])
+    const lng = Number(LON.exec(m[2] ?? "")?.[1])
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue
     const eleText = m[3] ? ELE.exec(m[3])?.[1]?.trim() : undefined
     const ele = eleText ? Number(eleText) : Number.NaN

@@ -1,3 +1,4 @@
+import { defined, nth } from "./assert.ts"
 import type { Course } from "./course.ts"
 import type { Gap } from "./coverage.ts"
 import type { LatLng } from "./geo.ts"
@@ -94,7 +95,7 @@ export class CourseMap {
       "marker-you",
       `<svg viewBox="-20 -20 40 40" aria-hidden="true"><path class="cone" d="M0 0 L-11 -18 A21 21 0 0 1 11 -18 Z"/><circle r="6"/></svg>`,
     )
-    this.youArrow = youEl.querySelector("svg")!
+    this.youArrow = defined(youEl.querySelector("svg"), "an <svg> in the You marker")
     this.you = htmlMarker(this.map, youEl)
   }
 
@@ -105,8 +106,8 @@ export class CourseMap {
     this.line.setPath(path)
     this.hitLine.setPath(path)
     this.setGaps([])
-    this.start.setPosition(course.points[0]!)
-    this.finish.setPosition(course.points[course.points.length - 1]!)
+    this.start.setPosition(nth(course.points, 0))
+    this.finish.setPosition(nth(course.points, course.points.length - 1))
     const bounds = new google.maps.LatLngBounds()
     for (const p of path) bounds.extend(p)
     this.map.fitBounds(bounds, 24)

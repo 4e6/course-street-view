@@ -1,3 +1,4 @@
+import { defined } from "./assert.ts"
 import type { Course } from "./course.ts"
 import type { Gap } from "./coverage.ts"
 import { formatDistance } from "./format.ts"
@@ -37,7 +38,7 @@ export class Profile {
   ) {
     this.canvas = document.createElement("canvas")
     el.append(this.canvas)
-    this.ctx = this.canvas.getContext("2d")!
+    this.ctx = defined(this.canvas.getContext("2d"), "a 2D canvas context")
     new ResizeObserver(() => this.resize()).observe(el)
 
     el.addEventListener("pointerdown", (e) => {
