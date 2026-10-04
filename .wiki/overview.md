@@ -3,7 +3,6 @@ type: Overview
 title: Course Street View
 description: Ride a GPX course in Google Street View, with the course map and an elevation-profile slider below. A static site with no backend, meant for GitHub Pages.
 tags: [overview]
-timestamp: 2026-10-02T11:16:31Z
 ---
 
 # What it is

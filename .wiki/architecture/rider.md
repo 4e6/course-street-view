@@ -3,9 +3,11 @@ type: Module
 title: Rider
 description: Keeps the one Street View panorama and the position s in step, whichever way a move started — slider, step, play, map tap, or Google's own arrows. Owns stepping, play and off-course detection.
 tags: [street-view, navigation]
-timestamp: 2026-10-02T12:10:56Z
-sources: [src/rider.ts, src/main.ts, tests/fake-street-view.ts]
-source_commit: f0cd6cc9beaf7f57e8d5ef27012b57531af751ae
+sources:
+  - resource: src/rider.ts
+  - resource: src/main.ts
+  - resource: tests/fake-street-view.ts
+sources_digest: 0bfb492bb83a6d9e
 ---
 
 # Responsibility

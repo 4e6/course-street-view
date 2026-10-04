@@ -3,7 +3,19 @@ type: Integration
 title: Google Maps Platform
 description: How the app is billed, capped and protected by Google — what costs money, what is free, the GCP project behind the key, and the quirks of Street View lookups found in testing.
 tags: [google, billing, street-view, api-key]
-timestamp: 2026-10-02T13:30:58Z
+sources:
+  - id: sku-details
+    resource: https://developers.google.com/maps/billing-and-pricing/sku-details
+    title: Google Maps Platform SKU details
+  - id: usage-and-billing
+    resource: https://developers.google.com/maps/documentation/javascript/usage-and-billing
+    title: Maps JavaScript API usage and billing
+  - id: street-view-service
+    resource: https://developers.google.com/maps/documentation/javascript/streetview
+    title: Street View Service
+  - id: service-terms
+    resource: https://cloud.google.com/maps-platform/terms/maps-service-terms/index-20240422
+    title: Google Maps Platform Service Specific Terms
 ---
 
 # What costs money
@@ -14,8 +26,10 @@ timestamp: 2026-10-02T13:30:58Z
 | Creating a `StreetViewPanorama` | Dynamic Street View load | 5,000 | ~$14 / 1,000 |
 | Each image from the Street View **Static** API | Static Street View | 10,000 | ~$7 / 1,000 |
 
+Prices and allowances per Google's SKU list.[^sku-details]
+
 Interactive Street View is billed **per panorama object**, not per image
-shown. Each *new* panorama object is another load; the same object showing a
+shown.[^usage-and-billing] Each *new* panorama object is another load; the same object showing a
 thousand positions is one. Measured: the load is counted when the object shows
 its **first panorama** — constructing a hidden one that shows nothing counted
 0. The app
@@ -33,7 +47,7 @@ per 20 m is ~5,000 images.
 * `StreetViewService.getPanorama` — by location or by panorama id. Stepping,
   coverage scanning and imagery dates are all built on it.
 * Moving within a panorama **as a user** — arrows, click-to-go, panning,
-  zooming — per Google's docs.
+  zooming — per Google's docs.[^street-view-service]
 * Moving it **from code** with `setPano` — measured: five course switches, each
   moving the panorama to new imagery, counted 0 against the billable quota.
   See [the question that asked](/questions/is-programmatic-setpano-billed.md).
@@ -67,8 +81,8 @@ numbers, so a measurement needs nobody else using the app.
 
 # Terms that shape the app
 
-* **No Street View beside a non-Google map.** The service terms forbid showing
-  Street View imagery and a non-Google map on the same screen, which rules out
+* **No Street View beside a non-Google map.** The service terms[^service-terms] forbid
+  showing Street View imagery and a non-Google map on the same screen, which rules out
   a free Leaflet/OpenStreetMap course map. The map is Google's.
 
 # The project behind the key
@@ -99,9 +113,7 @@ numbers, so a measurement needs nobody else using the app.
 * **The imagery date comes only from a lookup.** The panorama object does not
   expose it; looking the panorama up by id (free) does.
 
-# Citations
-
-[1] [Google Maps Platform SKU details](https://developers.google.com/maps/billing-and-pricing/sku-details)
-[2] [Maps JavaScript API usage and billing](https://developers.google.com/maps/documentation/javascript/usage-and-billing)
-[3] [Street View Service](https://developers.google.com/maps/documentation/javascript/streetview)
-[4] [Google Maps Platform Service Specific Terms](https://cloud.google.com/maps-platform/terms/maps-service-terms/index-20240422)
+[^sku-details]: [Google Maps Platform SKU details](https://developers.google.com/maps/billing-and-pricing/sku-details)
+[^usage-and-billing]: [Maps JavaScript API usage and billing](https://developers.google.com/maps/documentation/javascript/usage-and-billing)
+[^street-view-service]: [Street View Service](https://developers.google.com/maps/documentation/javascript/streetview)
+[^service-terms]: [Google Maps Platform Service Specific Terms](https://cloud.google.com/maps-platform/terms/maps-service-terms/index-20240422)

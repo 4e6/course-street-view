@@ -3,7 +3,6 @@ type: Gotcha
 title: The nearest Street View panorama is not the next one along the road
 description: Stepping by "nearest panorama" flickers between capture years and drifts onto footpaths beside the road. Follow the current panorama's arrows instead, and search only as a fallback.
 tags: [street-view, navigation]
-timestamp: 2026-10-02T11:16:01Z
 ---
 
 # Symptom

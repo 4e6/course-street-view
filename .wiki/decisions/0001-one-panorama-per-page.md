@@ -2,18 +2,26 @@
 type: Decision
 title: One Street View panorama per page, re-pointed with setPano
 description: Create a single StreetViewPanorama per page load and move it with setPano, because Google bills per panorama object loaded rather than per image viewed.
-status: accepted
+status: stable
 tags: [street-view, billing]
-timestamp: 2026-10-02T11:05:28Z
+sources:
+  - resource: src/main.ts
+  - resource: src/rider.ts
+  - id: sku-details
+    resource: https://developers.google.com/maps/billing-and-pricing/sku-details
+    title: Google Maps Platform SKU details
+  - id: street-view-service
+    resource: https://developers.google.com/maps/documentation/javascript/streetview
+    title: Street View Service
 ---
 
 # Context
 
 The app shows hundreds of Street View positions per course. Google Maps
 Platform bills interactive Street View per **panorama load** — creating a
-`StreetViewPanorama` — and states that moving within it is not billed. The
+`StreetViewPanorama` — and states that moving within it is not billed.[^sku] The
 Static Street View API bills per image. Locating panoramas with
-`StreetViewService` is free. See [Google Maps Platform](/integrations/google-maps-platform.md).
+`StreetViewService` is free.[^street-view-service] See [Google Maps Platform](/integrations/google-maps-platform.md).
 
 # Decision
 
@@ -48,7 +56,5 @@ position and every course, moving it with `setPano`.
 > moving the panorama with `setPano` counted 0 against the billable quota —
 > see [the answered question](/questions/is-programmatic-setpano-billed.md).
 
-# Citations
-
-[1] [Google Maps Platform SKU details](https://developers.google.com/maps/billing-and-pricing/sku-details)
-[2] [Street View Service](https://developers.google.com/maps/documentation/javascript/streetview)
+[^sku]: [Google Maps Platform SKU details](https://developers.google.com/maps/billing-and-pricing/sku-details)
+[^street-view-service]: [Street View Service](https://developers.google.com/maps/documentation/javascript/streetview)
