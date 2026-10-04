@@ -1,5 +1,8 @@
 # Wiki Update Log
 
+## 2026-10-04
+* **Update**: Bundle migrated to OKF v0.2 with the updated `llm-wiki` skill. [Course](/architecture/course.md) and [Rider](/architecture/rider.md) are pinned by `sources_digest` instead of `source_commit`, after reading the one commit that changed their sources (checked helpers replacing non-null assertions — no change to responsibility or boundaries, so the pages were left as written). [Decision 0001](/decisions/0001-one-panorama-per-page.md) now names the code it shaped in `sources`. Citations in it and in [Google Maps Platform](/integrations/google-maps-platform.md) became footnotes keyed to `sources`. Hand-set `timestamp` fields dropped; `status` values mapped onto `draft | stable | deprecated`; the bundle's `CLAUDE.md` brought in line with the current template.
+
 ## 2026-10-02
 * **Update**: Measured usage per minute. [Google Maps Platform](/integrations/google-maps-platform.md) corrected — Street View *is* counted against "Map loads" (it was wrongly recorded as unquota'd), a session that opens a course counts 2, the load happens when imagery is first shown — and gained a section on measuring usage. [The setPano question](/questions/is-programmatic-setpano-billed.md) is answered: not billed.
 * **Update**: The map and Street View panorama are now created on the first course, not on page load — [Google Maps Platform](/integrations/google-maps-platform.md) cost model rewritten, a dated note added to [decision 0001](/decisions/0001-one-panorama-per-page.md), and the [setPano question](/questions/is-programmatic-setpano-billed.md)'s method adjusted.

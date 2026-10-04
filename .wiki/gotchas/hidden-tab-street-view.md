@@ -3,7 +3,6 @@ type: Gotcha
 title: Hidden tabs do not render Street View
 description: In a background or hidden browser tab Street View paints black and timers are throttled, so automated tests there look like app bugs. Test with the window visible.
 tags: [testing, street-view]
-timestamp: 2026-10-02T11:05:28Z
 ---
 
 # Symptom

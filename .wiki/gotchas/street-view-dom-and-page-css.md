@@ -3,7 +3,6 @@ type: Gotcha
 title: Page CSS and Google's Street View DOM collide both ways
 description: A bare svg rule hides Street View's arrows, and Street View's own z-indexes cover overlays. Scope styles to the app and give the panorama container a stacking context.
 tags: [street-view, css]
-timestamp: 2026-10-02T11:05:28Z
 ---
 
 # Symptoms

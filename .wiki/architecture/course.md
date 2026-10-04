@@ -3,9 +3,11 @@ type: Module
 title: Course
 description: The course as geometry — distance along it, points, headings, gradient, and matching an arbitrary point back to a position s. Pure TypeScript, no Google, fully unit-tested.
 tags: [geometry, gpx]
-timestamp: 2026-10-02T11:05:28Z
-sources: [src/course.ts, src/geo.ts, src/gpx.ts]
-source_commit: c41e82b3f15fb41a98924a5632029d4dc58cbff8
+sources:
+  - resource: src/course.ts
+  - resource: src/geo.ts
+  - resource: src/gpx.ts
+sources_digest: 1fe5cd2a22a6b23c
 ---
 
 # Responsibility

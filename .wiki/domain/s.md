@@ -3,7 +3,6 @@ type: Glossary Term
 title: s (position along the course)
 description: Metres travelled along the course from its start — the one position every control reads and writes. Not a map coordinate, and not unique to a place.
 tags: [domain, geometry]
-timestamp: 2026-10-02T11:05:28Z
 ---
 
 **`s`** is distance along the course, in metres, from the start of the GPX
