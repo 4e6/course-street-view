@@ -19,7 +19,7 @@ sources:
 
 The app shows hundreds of Street View positions per course. Google Maps
 Platform bills interactive Street View per **panorama load** — creating a
-`StreetViewPanorama` — and states that moving within it is not billed.[^sku] The
+`StreetViewPanorama` — and states that moving within it is not billed.[^sku-details] The
 Static Street View API bills per image. Locating panoramas with
 `StreetViewService` is free.[^street-view-service] See [Google Maps Platform](/integrations/google-maps-platform.md).
 
@@ -56,5 +56,5 @@ position and every course, moving it with `setPano`.
 > moving the panorama with `setPano` counted 0 against the billable quota —
 > see [the answered question](/questions/is-programmatic-setpano-billed.md).
 
-[^sku]: [Google Maps Platform SKU details](https://developers.google.com/maps/billing-and-pricing/sku-details)
+[^sku-details]: [Google Maps Platform SKU details](https://developers.google.com/maps/billing-and-pricing/sku-details)
 [^street-view-service]: [Street View Service](https://developers.google.com/maps/documentation/javascript/streetview)
