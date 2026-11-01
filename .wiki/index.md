@@ -11,6 +11,6 @@ okf_version: "0.2"
 * [Architecture](architecture/) - What each part owns and where it stops: the course geometry and the Street View rider
 * [Decisions](decisions/) - Forks taken and what was rejected: one panorama per page, for billing
 * [Domain](domain/) - Vocabulary as this project uses it
-* [Gotchas](gotchas/) - Things that cost an afternoon: nearest-panorama flicker, CSS against Google's DOM, hidden-tab testing
+* [Gotchas](gotchas/) - Things that cost an afternoon: nearest-panorama flicker, CSS against Google's DOM, hidden-tab testing, Biome's Markdown formatter
 * [Integrations](integrations/) - Google Maps Platform: costs, caps, the GCP project and lookup quirks
 * [Questions](questions/) - What was unknown, and how it was answered; none open

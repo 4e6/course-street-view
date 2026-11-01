@@ -1,6 +1,7 @@
 # Wiki Update Log
 
 ## 2026-11-01
+* **Update**: Added the gotcha [Biome's Markdown formatter breaks the wiki's front matter](/gotchas/biome-markdown-formatter-breaks-front-matter.md), found while updating Biome; the formatter is now off in `biome.json`.
 * **Update**: [Terrain elevation](/architecture/terrain.md) records why the elevation choice applies instantly while the API key has its own button (a reload is a billed Maps load), after the Settings redesign.
 * **Update**: Added [Terrain elevation](/architecture/terrain.md) — the optional terrain-model elevation chosen in Settings, why it exists (an over-smoothed Garmin export hid a real dip on Estrada do Atalho), its boundary (elevation only; geometry stays the GPX's), and the sources rejected. Added the [AWS Terrain Tiles](/integrations/aws-terrain-tiles.md) integration (keyless, CORS, per-region source model, why zoom 13). [Course](/architecture/course.md) now says where its elevation can come from.
 
