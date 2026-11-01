@@ -1,6 +1,6 @@
 import "./style.css"
 import { Course, type CoursePoint } from "./course.ts"
-import { scanCoverage } from "./coverage.ts"
+import { type Gap, scanCoverage } from "./coverage.ts"
 import { formatDistance, formatGrade, formatImageDate } from "./format.ts"
 import { parseGpx } from "./gpx.ts"
 import { activeKey, builtInKey, loadMaps, setUserKey, userKey } from "./maps.ts"
@@ -9,14 +9,19 @@ import { once } from "./once.ts"
 import { Profile } from "./profile.ts"
 import { Rider, type RiderState, toLatLng } from "./rider.ts"
 import { load, save } from "./storage.ts"
+import { fetchTerrariumTile, withTerrainElevation } from "./terrain.ts"
 
 const COURSE_KEY = "csv.course"
 const POSITION_KEY = "csv.position"
 const SPLIT_KEY = "csv.split"
 const SPEED_KEY = "csv.speed"
+const ELEVATION_KEY = "csv.elevation"
 
 const NORMAL_SPEED = { label: "1×", interval: 1000 }
 const SPEEDS = [{ label: "½×", interval: 2000 }, NORMAL_SPEED, { label: "2×", interval: 500 }]
+
+/** Where the profile, HUD elevation and grade come from. */
+type ElevationSource = "gpx" | "terrain"
 
 interface SavedCourse {
   name: string | null
@@ -59,16 +64,42 @@ function toast(message: string): void {
   }, 4000)
 }
 
+const elevationSource = (): ElevationSource =>
+  load<string>(ELEVATION_KEY) === "terrain" ? "terrain" : "gpx"
+
+/**
+ * Called when the elevation choice changes. Nothing to apply before the maps
+ * have loaded (there is no course yet), so main() sets it once they have.
+ */
+let onElevationChange: () => void = () => {}
+
+function setElevationStatus(text: string): void {
+  $("elevation-status").textContent = text
+}
+
 function openSettings(reason?: string): void {
   const reasonEl = $("key-reason")
   reasonEl.textContent = reason ?? ""
   reasonEl.hidden = !reason
-  $<HTMLInputElement>("key-input").value = userKey() ?? ""
+  const input = $<HTMLInputElement>("key-input")
+  input.value = userKey() ?? ""
+  for (const radio of document.querySelectorAll<HTMLInputElement>("input[name=elevation]")) {
+    radio.checked = radio.value === elevationSource()
+  }
   $<HTMLDialogElement>("settings").showModal()
+  // The dialog is opened with a reason when the key is what needs fixing.
+  if (reason) input.focus()
 }
 
 function setupSettings(): void {
   const input = $<HTMLInputElement>("key-input")
+  for (const radio of document.querySelectorAll<HTMLInputElement>("input[name=elevation]")) {
+    radio.addEventListener("change", () => {
+      if (!radio.checked) return
+      save(ELEVATION_KEY, radio.value)
+      onElevationChange()
+    })
+  }
   $("open-settings").addEventListener("click", () => openSettings())
   $("key-builtin").textContent = !builtInKey
     ? "This copy of the app has no built-in key, so a key of your own is required."
@@ -150,7 +181,19 @@ async function main(): Promise<void> {
     return
   }
 
-  let course: Course | null = null
+  // The GPX's own course carries the geometry — the rider, the map, the
+  // coverage scan and map taps never read elevation. `elevation` is what the
+  // profile and HUD read: that same course, or the terrain-densified copy of it.
+  // Both measure the same distance along the track, so a position means the
+  // same place in either.
+  let geometry: Course | null = null
+  let elevation: Course | null = null
+  let terrain: Course | null = null
+  let gaps: Gap[] = []
+  // Bumped whenever the course or the elevation choice changes, so a terrain
+  // load that finishes late can tell it is no longer wanted.
+  let generation = 0
+  let terrainLoad: AbortController | null = null
   let cancelScan = () => {}
   const savePosition = throttle((s: number) => save(POSITION_KEY, Math.round(s)), 1000)
   const speed = { index: load<number>(SPEED_KEY) ?? 1 }
@@ -175,9 +218,9 @@ async function main(): Promise<void> {
     const service = new google.maps.StreetViewService()
     const rider = new Rider(pano, service, (state) => render(state))
     const courseMap = new CourseMap($("map"), (p) => {
-      if (!course) return
+      if (!geometry) return
       rider.pause()
-      void rider.goTo(course.locate(p).s)
+      void rider.goTo(geometry.locate(p).s)
     })
     pano.addListener("pov_changed", () => courseMap.setHeading(pano.getPov().heading ?? 0))
     // For poking at from the console during development; stripped from builds.
@@ -189,12 +232,13 @@ async function main(): Promise<void> {
   const rider = () => viewer().rider
 
   const render = (state: Readonly<RiderState>) => {
-    if (!course) return
+    if (!geometry || !elevation) return
     const { pano, courseMap } = viewer()
-    $("hud-distance").textContent = `${formatDistance(state.s)} / ${formatDistance(course.length)}`
-    const ele = course.elevationAt(state.s)
+    $("hud-distance").textContent =
+      `${formatDistance(state.s)} / ${formatDistance(geometry.length)}`
+    const ele = elevation.elevationAt(state.s)
     $("hud-elevation").textContent = ele === null ? "" : `${Math.round(ele)} m`
-    const grade = course.gradeAt(state.s)
+    const grade = elevation.gradeAt(state.s)
     $("hud-grade").textContent = grade === null ? "" : formatGrade(grade)
     $("hud-date").textContent = state.imageDate ? `Imagery ${formatImageDate(state.imageDate)}` : ""
 
@@ -216,7 +260,7 @@ async function main(): Promise<void> {
     profile.setPosition(state.s)
     const panoPosition = pano.getPosition()
     const you =
-      state.offCourse !== null && panoPosition ? toLatLng(panoPosition) : course.pointAt(state.s)
+      state.offCourse !== null && panoPosition ? toLatLng(panoPosition) : geometry.pointAt(state.s)
     courseMap.setYou(you, pano.getPov().heading ?? 0)
     savePosition(state.s)
   }
@@ -240,24 +284,86 @@ async function main(): Promise<void> {
     },
   })
 
+  /** Makes `next` the course the profile and HUD read, keeping the coverage gaps drawn. */
+  const showElevation = (next: Course) => {
+    elevation = next
+    profile.setCourse(next)
+    profile.setGaps(gaps)
+    render(rider().current)
+  }
+
+  /**
+   * Brings the elevation in line with the preference for the current course.
+   * Never waits on anything the ride needs: the GPX's elevation is shown
+   * straight away and terrain replaces it when (and if) it arrives.
+   */
+  const applyElevation = () => {
+    const base = geometry
+    if (!base) return
+    const mine = ++generation
+    terrainLoad?.abort()
+    terrainLoad = null
+    if (elevationSource() === "gpx") {
+      setElevationStatus("")
+      if (elevation !== base) showElevation(base)
+      return
+    }
+    if (terrain) {
+      setElevationStatus("")
+      if (elevation !== terrain) showElevation(terrain)
+      return
+    }
+    const controller = new AbortController()
+    terrainLoad = controller
+    setElevationStatus("Loading terrain…")
+    void withTerrainElevation(base.points, {
+      getTile: fetchTerrariumTile,
+      signal: controller.signal,
+      onProgress: (done, total) => {
+        if (mine === generation) setElevationStatus(`Loading terrain… ${done}/${total}`)
+      },
+    }).then(
+      (points) => {
+        if (mine !== generation) return
+        terrainLoad = null
+        terrain = new Course(points)
+        setElevationStatus("")
+        showElevation(terrain)
+      },
+      () => {
+        // Aborted, or superseded by a newer choice or course.
+        if (mine !== generation) return
+        terrainLoad = null
+        setElevationStatus("Couldn't load terrain elevation; showing the GPX file's.")
+        toast("Couldn't load terrain elevation. Showing the GPX file's instead.")
+      },
+    )
+  }
+  onElevationChange = applyElevation
+
   const loadCourse = async (name: string | null, points: CoursePoint[], s = 0) => {
     // Parsed before anything billable is built, so a broken file costs nothing.
     const next = new Course(points)
     const { service, courseMap, rider } = viewer()
     rider.interval = applySpeed()
-    course = next
+    geometry = next
+    elevation = next
+    terrain = null
+    gaps = []
     $("course-name").textContent = name ?? "Untitled course"
     document.title = name ? `${name} · Course Street View` : "Course Street View"
     courseMap.setCourse(next)
     profile.setCourse(next)
     cancelScan()
-    cancelScan = scanCoverage(next, service, (gaps) => {
-      courseMap.setGaps(gaps)
-      profile.setGaps(gaps)
+    cancelScan = scanCoverage(next, service, (found) => {
+      gaps = found
+      courseMap.setGaps(found)
+      profile.setGaps(found)
     })
     $("empty").hidden = true
     $("hud").hidden = false
     $("controls").hidden = false
+    applyElevation()
     await rider.setCourse(next, s)
   }
 
@@ -328,7 +434,7 @@ async function main(): Promise<void> {
   $("back-to-course").addEventListener("click", () => void rider().goTo(rider().current.s))
 
   document.addEventListener("keydown", (e) => {
-    if (!course || e.metaKey || e.ctrlKey || e.altKey) return
+    if (!geometry || e.metaKey || e.ctrlKey || e.altKey) return
     const target = e.target as HTMLElement
     if (target.closest("input, textarea, dialog")) return
     // Space on a focused button already clicks it.

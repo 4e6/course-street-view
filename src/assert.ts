@@ -4,7 +4,7 @@ export function defined<T>(value: T | null | undefined, what: string): T {
   return value
 }
 
-/** `xs[i]`, for indices that the caller's own arithmetic keeps in range. */
-export function nth<T>(xs: readonly T[], i: number): T {
+/** `xs[i]` (arrays and typed arrays alike), for indices that the caller's own arithmetic keeps in range. */
+export function nth<T>(xs: ArrayLike<T>, i: number): T {
   return defined(xs[i], `an item at index ${i}`)
 }

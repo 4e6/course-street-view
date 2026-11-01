@@ -15,6 +15,9 @@ sources_digest: 1fe5cd2a22a6b23c
 Owns everything that can be answered from the GPX alone: converting between
 [s](/domain/s.md) and points, the heading to look along at a position,
 elevation and gradient, and cutting stretches out for drawing. Also parses GPX.
+Elevation is whatever its points carry: the GPX's, or a terrain model's when
+[Terrain elevation](/architecture/terrain.md) builds a second `Course` for the
+profile and HUD.
 
 Does **not** know Street View or the map exists. That boundary is what lets the
 hardest logic in the app run under `bun test` with no browser and no API key.
