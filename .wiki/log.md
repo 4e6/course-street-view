@@ -1,5 +1,8 @@
 # Wiki Update Log
 
+## 2026-11-01
+* **Update**: Added [Terrain elevation](/architecture/terrain.md) — the optional terrain-model elevation chosen in Settings, why it exists (an over-smoothed Garmin export hid a real dip on Estrada do Atalho), its boundary (elevation only; geometry stays the GPX's), and the sources rejected. Added the [AWS Terrain Tiles](/integrations/aws-terrain-tiles.md) integration (keyless, CORS, per-region source model, why zoom 13). [Course](/architecture/course.md) now says where its elevation can come from.
+
 ## 2026-10-04
 * **Update**: Bundle migrated to OKF v0.2 with the updated `llm-wiki` skill. [Course](/architecture/course.md) and [Rider](/architecture/rider.md) are pinned by `sources_digest` instead of `source_commit`, after reading the one commit that changed their sources (checked helpers replacing non-null assertions — no change to responsibility or boundaries, so the pages were left as written). [Decision 0001](/decisions/0001-one-panorama-per-page.md) now names the code it shaped in `sources`. Citations in it and in [Google Maps Platform](/integrations/google-maps-platform.md) became footnotes keyed to `sources`. Hand-set `timestamp` fields dropped; `status` values mapped onto `draft | stable | deprecated`; the bundle's `CLAUDE.md` brought in line with the current template.
 
