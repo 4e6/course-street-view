@@ -7,12 +7,12 @@ tags: [biome, tooling, wiki]
 
 # Symptoms
 
-- With Biome's Markdown formatter on and no front-matter parser, `bun run format`
-  (`biome check --write`) rewrites every `.wiki/*.md` page's front matter: the
-  closing `---` becomes a heading underline, so `okf_version: "0.2"` turns into a
-  `##` heading, YAML lists are re-indented, and `*emphasis*` becomes `_emphasis_`.
+- After a Biome update, or with the front-matter parser turned off, `bun run lint`
+  fails with format errors in every wiki page, though no page changed.
+- `bun run format` (`biome check --write`) then rewrites every `.wiki/*.md` page's
+  front matter: the closing `---` becomes a heading underline, so
+  `okf_version: "0.2"` turns into a `##` heading, and YAML lists lose their indent.
   The bundle stops being valid OKF.
-- `bun run lint` fails with format errors in every wiki page, though no page changed.
 
 # Cause
 
@@ -26,8 +26,8 @@ Markdown to it: a thematic break, text, and a setext heading.
 matter as YAML (layout only; keys and values are untouched) and the rest of the
 page as Markdown. Never turn the parser off while the formatter is on.
 
-`okf.py` writes index bullets as `-` and pins unquoted, which is what Biome
-produces, so `bun run format` and `okf.py index --write` converge and do not
+`okf.py` writes index bullets as `-`, as Biome does, and pins unquoted, which
+Biome leaves as they are, so `bun run format` and `okf.py index --write` converge and do not
 fight over the same lines.
 
 After upgrading Biome, run `bun run format`, then `okf.py index --write` and
