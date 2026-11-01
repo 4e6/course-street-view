@@ -117,7 +117,8 @@ function setupSettings(): void {
   $("key-save").addEventListener("click", () => {
     // Settings also holds the elevation choice, which applies on its own; a
     // reload here would only cost a new billed Maps load.
-    if (input.value.trim() === (userKey() ?? "")) {
+    // Without any key, an empty field still has to be filled in (below).
+    if (input.value.trim() === (userKey() ?? "") && activeKey()) {
       $<HTMLDialogElement>("settings").close()
       return
     }

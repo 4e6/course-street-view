@@ -6,7 +6,7 @@ tags: [elevation, gradient, terrain]
 sources:
   - resource: src/terrain.ts
   - resource: src/main.ts
-sources_digest: a143a9584a52f678
+sources_digest: cec4a576b4513c0d
 ---
 
 # Responsibility

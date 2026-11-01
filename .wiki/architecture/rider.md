@@ -7,7 +7,7 @@ sources:
   - resource: src/rider.ts
   - resource: src/main.ts
   - resource: tests/fake-street-view.ts
-sources_digest: af9bcd4b97b781e4
+sources_digest: 0118a91ff77b329a
 ---
 
 # Responsibility

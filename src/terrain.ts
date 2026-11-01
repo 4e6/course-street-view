@@ -196,7 +196,15 @@ export async function withTerrainElevation(
       CONCURRENCY,
       async (key) => {
         const parts = key.split("/").map(Number)
-        const tile = await getTile(nth(parts, 0), nth(parts, 1), nth(parts, 2), stop.signal)
+        let tile: Tile
+        try {
+          tile = await getTile(nth(parts, 0), nth(parts, 1), nth(parts, 2), stop.signal)
+        } catch (e) {
+          // Abort here, not after the rejection has worked its way out of the
+          // pool, so no other tile can report progress in between.
+          stop.abort(e)
+          throw e
+        }
         stop.signal.throwIfAborted()
         tiles.set(key, tile)
         onProgress?.(tiles.size, keys.length)
