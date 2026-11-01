@@ -153,7 +153,7 @@ function setupSettings(): void {
   // Enter would otherwise submit the form with its first submit button, Done,
   // closing the dialog and dropping the typed key.
   input.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return
+    if (e.key !== "Enter" || e.isComposing) return
     e.preventDefault()
     saveKey()
   })
@@ -205,7 +205,9 @@ async function main(): Promise<void> {
 
   const key = activeKey()
   if (!key) {
-    $("open-gpx").addEventListener("click", () => openSettings())
+    $("open-gpx").addEventListener("click", () =>
+      openSettings("Add a Google Maps API key to get started."),
+    )
     openSettings("Add a Google Maps API key to get started.")
     return
   }

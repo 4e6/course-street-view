@@ -472,7 +472,8 @@ body {
   border: 0;
 }
 
-.setting + .setting {
+/* A hidden section (the elevation one, when only the key is shown) still counts as a sibling. */
+.setting:not([hidden]) + .setting {
   margin-top: 18px;
   padding-top: 16px;
   border-top: 1px solid var(--border);

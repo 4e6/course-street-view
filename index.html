@@ -113,7 +113,7 @@
             Where the profile, elevation and grade come from. Changes apply right away.
           </p>
           <label class="choice">
-            <input type="radio" name="elevation" value="gpx" aria-describedby="elevation-gpx-why" />
+            <input type="radio" name="elevation" value="gpx" />
             <span>
               From the GPX file
               <small id="elevation-gpx-why">
@@ -122,11 +122,11 @@
             </span>
           </label>
           <label class="choice">
-            <input type="radio" name="elevation" value="terrain" aria-describedby="elevation-terrain-why" />
+            <input type="radio" name="elevation" value="terrain" />
             <span>
               Terrain model (EU-DEM / SRTM, ~25–30 m)
               <small id="elevation-terrain-why">
-                Measured ground height. Shows dips and ramps, but can place them a few tens of
+                Measured terrain height. Shows dips and ramps, but can place them a few tens of
                 metres off and gets bridges and tunnels wrong.
               </small>
             </span>
@@ -139,7 +139,7 @@
 
         <section class="setting" aria-labelledby="key-heading">
           <h3 id="key-heading">Google Maps API key</h3>
-          <p id="key-reason" class="key-reason" role="alert" hidden></p>
+          <p id="key-reason" class="key-reason" hidden></p>
           <p>
             This app shows Google Street View, which needs a Google Maps Platform key with the
             <strong>Maps JavaScript API</strong> enabled. A key you enter here is kept only in this
