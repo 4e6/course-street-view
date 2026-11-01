@@ -568,7 +568,7 @@ describe("terrain model choice on a real road", () => {
   })
 
   test("the smoothing widths stay in the band the course was tuned on", () => {
-    expect(SMOOTHING.srtm).toBeGreaterThanOrEqual(30)
+    expect(SMOOTHING.srtm).toBeGreaterThanOrEqual(32)
     expect(SMOOTHING.srtm).toBeLessThanOrEqual(37)
     expect(SMOOTHING.eudem).toBeGreaterThanOrEqual(50)
     expect(SMOOTHING.eudem).toBeLessThanOrEqual(70)

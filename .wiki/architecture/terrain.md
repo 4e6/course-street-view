@@ -31,7 +31,7 @@ ends padded by point reflection so a straight slope stays straight there.
 Standard deviation 35 m for SRTM; 60 m for the default tiles, but only when
 they are EU-DEM, since national high-resolution models (LiDAR-class) are
 better left as they are. The grade window stays 100 m, shared with GPX mode.
-The status line under the Settings choice names the model used.
+The status line under the Settings choice names the model used (SRTM or EU-DEM; it is blank when the tiles are used as they come).
 
 **Boundary:** only the elevation `Course` is replaced. Street View
 ([Rider](/architecture/rider.md)), the map, the coverage scan and map-tap matching keep
@@ -113,7 +113,10 @@ or trees. That is why it is an option and not the default.
   hump in every terrain model while the GPX descends steadily.
 - **The gate rejects many European courses.** The `v2` tiles _can_ be SRTM
   where the default ones are EU-DEM, but not everywhere; near Nice they are
-  mixed (`srtm` plus `eudem`). Coastal, mixed and northern tiles fail it and fall back to EU-DEM, where the false
-  descents are only damped (60 m), not cured.
+  mixed (`srtm` plus `eudem`). Coastal, mixed and northern tiles fail it and
+  fall back to the default tiles. Pure EU-DEM tiles (Nice, Faro) are then
+  damped (60 m), not cured; tiles of mixed origin (Stockholm lists `eudem`,
+  `srtm`, `gmted` and `etopo1`; Finland `pgdc_5m` plus `eudem`) are used as they
+  come, unsmoothed.
 - **Provisional numbers.** 35 and 60 m were tuned on one Portuguese course,
   against one real dip; treat them as evidence-level, not as a measured optimum.
