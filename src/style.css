@@ -472,7 +472,8 @@ body {
   border: 0;
 }
 
-.setting + .setting {
+/* A hidden section (the elevation one, when only the key is shown) still counts as a sibling. */
+.setting:not([hidden]) + .setting {
   margin-top: 18px;
   padding-top: 16px;
   border-top: 1px solid var(--border);
@@ -506,14 +507,15 @@ body {
     monospace;
 }
 
-/* A radio and its text on one line; overrides the full-width, bold label and input above. */
+/* A radio beside its name and a line on when to pick it; overrides the full-width, bold label and input above. */
 .dialog .choice {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
-  min-height: 36px;
   margin: 0;
+  padding: 7px 0;
   font-weight: 400;
+  line-height: 1.4;
   cursor: pointer;
 }
 
@@ -521,8 +523,15 @@ body {
   flex: none;
   width: 18px;
   height: 18px;
-  margin: 0;
+  margin: 1px 0 0;
   accent-color: var(--accent);
+}
+
+.dialog .choice small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .elevation-status {
@@ -543,12 +552,31 @@ body {
   background: rgba(176, 52, 0, 0.35);
 }
 
+/* The key's own buttons, under the field they act on: secondary left, primary right. */
+.key-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.key-actions #key-clear {
+  margin-right: auto;
+}
+
+.dialog .key-note {
+  margin: 6px 0 0;
+  text-align: right;
+}
+
 .dialog-actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }
 
 @media (max-width: 560px) {

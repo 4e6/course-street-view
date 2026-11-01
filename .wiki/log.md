@@ -1,6 +1,7 @@
 # Wiki Update Log
 
 ## 2026-11-01
+* **Update**: [Terrain elevation](/architecture/terrain.md) records why the elevation choice applies instantly while the API key has its own button (a reload is a billed Maps load), after the Settings redesign.
 * **Update**: Added [Terrain elevation](/architecture/terrain.md) — the optional terrain-model elevation chosen in Settings, why it exists (an over-smoothed Garmin export hid a real dip on Estrada do Atalho), its boundary (elevation only; geometry stays the GPX's), and the sources rejected. Added the [AWS Terrain Tiles](/integrations/aws-terrain-tiles.md) integration (keyless, CORS, per-region source model, why zoom 13). [Course](/architecture/course.md) now says where its elevation can come from.
 
 ## 2026-10-04

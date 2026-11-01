@@ -78,18 +78,45 @@ function setElevationStatus(text: string, canRetry = false): void {
   $("elevation-retry").hidden = !canRetry
 }
 
+/** The typed key, when saving it would change anything. */
+function keyToSave(): string | null {
+  const typed = $<HTMLInputElement>("key-input").value.trim()
+  return typed && typed !== userKey() ? typed : null
+}
+
+function updateKeySave(): void {
+  $<HTMLButtonElement>("key-save").disabled = keyToSave() === null
+}
+
+/**
+ * Opens Settings. With a `reason`, the app opened it because the key needs
+ * fixing, so the dialog shows only the key: elevation is beside the point
+ * until there is a map to show it on.
+ */
 function openSettings(reason?: string): void {
+  const dialog = $<HTMLDialogElement>("settings")
+  const keyOnly = Boolean(reason)
   const reasonEl = $("key-reason")
   reasonEl.textContent = reason ?? ""
-  reasonEl.hidden = !reason
+  reasonEl.hidden = !keyOnly
+  $("settings-title").textContent = keyOnly ? "Google Maps API key" : "Settings"
+  $("key-heading").hidden = keyOnly
+  $("elevation-setting").hidden = keyOnly
+  $("settings-done").textContent = keyOnly ? "Close" : "Done"
+  if (keyOnly) dialog.setAttribute("aria-describedby", "key-reason")
+  else dialog.removeAttribute("aria-describedby")
+
   const input = $<HTMLInputElement>("key-input")
   input.value = userKey() ?? ""
+  updateKeySave()
   for (const radio of document.querySelectorAll<HTMLInputElement>("input[name=elevation]")) {
     radio.checked = radio.value === elevationSource()
   }
-  $<HTMLDialogElement>("settings").showModal()
-  // The dialog is opened with a reason when the key is what needs fixing.
-  if (reason) input.focus()
+  dialog.showModal()
+  // Focus on Done when opened by hand, so a stray arrow key can't flip the
+  // elevation radios; on the key when the key is the point.
+  if (keyOnly) input.focus()
+  else $("settings-done").focus()
 }
 
 function setupSettings(): void {
@@ -114,21 +141,23 @@ function setupSettings(): void {
     setUserKey(null)
     location.reload()
   })
-  $("key-save").addEventListener("click", () => {
-    // Settings also holds the elevation choice, which applies on its own; a
-    // reload here would only cost a new billed Maps load.
-    // Without any key, an empty field still has to be filled in (below).
-    if (input.value.trim() === (userKey() ?? "") && activeKey()) {
-      $<HTMLDialogElement>("settings").close()
-      return
-    }
-    if (!input.value.trim()) {
-      input.focus()
-      return
-    }
-    setUserKey(input.value)
+  // Only the key waits for a button, and only a changed key enables it: a
+  // reload is a new billed Maps load, so it never happens for nothing.
+  const saveKey = () => {
+    const key = keyToSave()
+    if (key === null) return
+    setUserKey(key)
     location.reload()
+  }
+  input.addEventListener("input", updateKeySave)
+  // Enter would otherwise submit the form with its first submit button, Done,
+  // closing the dialog and dropping the typed key.
+  input.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.isComposing) return
+    e.preventDefault()
+    saveKey()
   })
+  $("key-save").addEventListener("click", saveKey)
 }
 
 /** The draggable bar between Street View and the map. */
@@ -176,7 +205,9 @@ async function main(): Promise<void> {
 
   const key = activeKey()
   if (!key) {
-    $("open-gpx").addEventListener("click", () => openSettings())
+    $("open-gpx").addEventListener("click", () =>
+      openSettings("Add a Google Maps API key to get started."),
+    )
     openSettings("Add a Google Maps API key to get started.")
     return
   }
