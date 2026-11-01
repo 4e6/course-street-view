@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { deflateSync } from "node:zlib"
 import { nth } from "../src/assert.ts"
@@ -9,6 +9,8 @@ import {
   decodeTerrarium,
   decodeTerrariumTile,
   densify,
+  fetchSrtmTile,
+  fetchTerrariumTile,
   type GetTile,
   SMOOTHING,
   sampleElevation,
@@ -358,6 +360,30 @@ describe("withTerrainElevation", () => {
     expect(started).toBe(startedAtAbort)
     expect(startedAtAbort).toBeLessThan(13)
   })
+
+  test("a failed v2 tile stops the v2 attempt early, before the fallback", async () => {
+    let v2Started = 0
+    const v1Loads: number[] = []
+    const getSrtmTile: GetTile = (_z, x) => {
+      v2Started++
+      // The first tile fails; the others are slow, so the six workers are all busy when it does.
+      if (v2Started === 1) {
+        return new Promise((_resolve, reject) => setTimeout(() => reject(new Error("403")), 5))
+      }
+      return new Promise((resolve) =>
+        setTimeout(() => resolve({ ...flat(x), sources: ["srtm/N39W010.tif"] }), 30),
+      )
+    }
+    const getTile: GetTile = async (_z, x) => {
+      v1Loads.push(x)
+      return flat(x)
+    }
+    await withTerrainElevation(line, { getTile, getSrtmTile })
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    expect(v1Loads.length).toBeGreaterThan(6)
+    expect(v2Started).toBeLessThanOrEqual(6)
+    expect(v2Started).toBeLessThan(v1Loads.length)
+  })
 })
 
 describe("smoothElevations", () => {
@@ -543,7 +569,7 @@ describe("terrain model choice on a real road", () => {
 
   test("the smoothing widths stay in the band the course was tuned on", () => {
     expect(SMOOTHING.srtm).toBeGreaterThanOrEqual(30)
-    expect(SMOOTHING.srtm).toBeLessThanOrEqual(40)
+    expect(SMOOTHING.srtm).toBeLessThanOrEqual(37)
     expect(SMOOTHING.eudem).toBeGreaterThanOrEqual(50)
     expect(SMOOTHING.eudem).toBeLessThanOrEqual(70)
   })
@@ -582,14 +608,24 @@ describe("terrain model choice on a real road", () => {
       new Promise((_resolve, reject) =>
         signal?.addEventListener("abort", () => reject(signal.reason)),
       )
+    let aborted = false
+    const reported: [number, number][] = []
     const result = withTerrainElevation(site, {
       getTile: f.getTile,
       getSrtmTile: slow,
       signal: controller.signal,
+      onProgress: (done, total) => {
+        if (aborted) reported.push([done, total])
+      },
     })
-    setTimeout(() => controller.abort(), 10)
+    setTimeout(() => {
+      aborted = true
+      controller.abort()
+    }, 10)
     await expect(result).rejects.toThrow()
+    await new Promise((resolve) => setTimeout(resolve, 20))
     expect(f.loads.v1).toEqual([])
+    expect(reported).toEqual([])
   })
 
   test("default tiles from a national model are not smoothed", async () => {
@@ -604,5 +640,41 @@ describe("terrain model choice on a real road", () => {
       const direct = sampleElevation(p.lat, p.lng, 13, (x, y) => tiles.get(`${x}/${y}`) as Tile)
       expect(p.ele).toBe(direct)
     }
+  })
+})
+
+describe("fetching tiles", () => {
+  const realFetch = globalThis.fetch
+  afterEach(() => {
+    globalThis.fetch = realFetch
+  })
+  const png = new Uint8Array(
+    readFileSync(new URL("./fixtures/terrarium-v2-13-3888-3122.png", import.meta.url)),
+  )
+  const stub = (headers: Record<string, string>) => {
+    const urls: string[] = []
+    globalThis.fetch = (async (url: string) => {
+      urls.push(url)
+      return new Response(png, { headers })
+    }) as unknown as typeof fetch
+    return urls
+  }
+
+  test("reads every model from the imagery-sources header", async () => {
+    const urls = stub({ "x-amz-meta-x-imagery-sources": "srtm/N39W010.tif, srtm/N39W009.tif" })
+    const tile = await fetchSrtmTile(13, 3888, 3122)
+    expect(tile.sources).toEqual(["srtm/N39W010.tif", "srtm/N39W009.tif"])
+    expect(urls[0]).toContain("/v2/")
+    expect(urls[0]).toEndWith("/13/3888/3122.png")
+    stub({ "x-amz-meta-x-imagery-sources": "eudem/a.tif,gmted/b.tif" })
+    expect((await fetchTerrariumTile(13, 3888, 3122)).sources).toEqual([
+      "eudem/a.tif",
+      "gmted/b.tif",
+    ])
+  })
+
+  test("a response without the header has no sources, so the SRTM gate stays closed", async () => {
+    stub({})
+    expect((await fetchSrtmTile(13, 3888, 3122)).sources).toEqual([])
   })
 })

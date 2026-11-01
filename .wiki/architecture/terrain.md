@@ -6,7 +6,7 @@ tags: [elevation, gradient, terrain]
 sources:
   - resource: src/terrain.ts
   - resource: src/main.ts
-sources_digest: fd1517ba332ac43c
+sources_digest: fbfdc668e6ffb711
 ---
 
 # Responsibility
@@ -111,9 +111,9 @@ or trees. That is why it is an option and not the default.
   No model is right everywhere.
 - **Unfixable by any model:** a cutting or bridge at about km 50.85–51.0 puts a
   hump in every terrain model while the GPX descends steadily.
-- **The gate rejects many European courses.** The `v2` tiles are SRTM only
-  where the default ones are EU-DEM; coastal, mixed (`srtm` plus `eudem`)
-  and northern tiles fail it and fall back to EU-DEM, where the false
+- **The gate rejects many European courses.** The `v2` tiles _can_ be SRTM
+  where the default ones are EU-DEM, but not everywhere; near Nice they are
+  mixed (`srtm` plus `eudem`). Coastal, mixed and northern tiles fail it and fall back to EU-DEM, where the false
   descents are only damped (60 m), not cured.
 - **Provisional numbers.** 35 and 60 m were tuned on one Portuguese course,
   against one real dip; treat them as evidence-level, not as a measured optimum.

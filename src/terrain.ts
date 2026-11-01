@@ -188,7 +188,10 @@ export interface TerrainOptions {
   getSrtmTile?: GetTile
   /** Aborts outstanding tile requests; the returned promise then rejects. */
   signal?: AbortSignal
-  /** Called as tiles arrive, with how many are done of how many are needed; never after a failure. */
+  /**
+   * Called as tiles arrive, with how many are done of how many are needed. Nothing follows a
+   * failure, except that the count restarts at 0 when the default tiles are tried instead.
+   */
   onProgress?: (done: number, total: number) => void
 }
 
