@@ -10,7 +10,7 @@ tags: [billing, street-view]
 
 [One panorama per page](/decisions/0001-one-panorama-per-page.md) assumes that
 moving the panorama with `setPano` costs nothing after the first load. Google
-documents that *user* navigation within a panorama is not billed and that the
+documents that _user_ navigation within a panorama is not billed and that the
 billable event is instantiating the panorama object; it does not explicitly
 cover the app moving it from code.
 

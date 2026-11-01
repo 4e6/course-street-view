@@ -47,11 +47,11 @@ random elevation noise, and colour management could alter the bytes.
 
 # Rejected alternatives
 
-* **Google Elevation API** — not enabled on the project's key, billed per
+- **Google Elevation API** — not enabled on the project's key, billed per
   request, and a spend decision for whoever owns the key.
-* **OpenTopoData's public API** — shared limits of 1 request/s and 1,000/day;
+- **OpenTopoData's public API** — shared limits of 1 request/s and 1,000/day;
   fine for an investigation, not for an app.
-* **Sampling only at the GPX's own points** — route-planner files can have
+- **Sampling only at the GPX's own points** — route-planner files can have
   hundreds of metres between points, which loses the detail this exists for.
 
 # Limits
