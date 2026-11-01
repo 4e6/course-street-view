@@ -1,18 +1,18 @@
 ---
 type: Gotcha
-title: Biome's Markdown formatter breaks the wiki's front matter
-description: Biome formats Markdown by default and, without its front-matter parser, reads a page's YAML block as text. Formatting the wiki turns front matter into headings, so the Markdown formatter is off in biome.json.
+title: Biome must parse front matter to format the wiki
+description: Without its front-matter parser Biome reads a page's YAML block as Markdown and turns it into headings. With the parser on, it formats the front matter as YAML and the body as Markdown, and agrees with okf.py's output.
 tags: [biome, tooling, wiki]
 ---
 
 # Symptoms
 
-* After a Biome update, `bun run lint` fails with format errors in every
-  `.wiki/*.md` page, though no page changed.
-* `bun run format` (`biome check --write`) "fixes" them by rewriting the
+- After a Biome update, or with the front-matter parser turned off, `bun run lint`
+  fails with format errors in every wiki page, though no page changed.
+- `bun run format` (`biome check --write`) then rewrites every `.wiki/*.md` page's
   front matter: the closing `---` becomes a heading underline, so
-  `okf_version: "0.2"` turns into a `##` heading, YAML lists are re-indented,
-  and `*emphasis*` becomes `_emphasis_`. The bundle stops being valid OKF.
+  `okf_version: "0.2"` turns into a `##` heading, and YAML lists lose their indent.
+  The bundle stops being valid OKF.
 
 # Cause
 
@@ -22,10 +22,14 @@ Markdown to it: a thematic break, text, and a setext heading.
 
 # What we do
 
-The Markdown **formatter** is disabled in `biome.json`
-(`markdown.formatter.enabled: false`). That also stops Biome formatting
-`README.md` and `CLAUDE.md`, which is accepted. Markdown **linting** stays on;
-its rules skip pages that open with `---`.
+`biome.json` sets `markdown.parser.frontmatter: true`, so Biome formats the front
+matter as YAML (layout only; keys and values are untouched) and the rest of the
+page as Markdown. Never turn the parser off while the formatter is on.
 
-To let Biome format Markdown again, enable its front-matter parser and run
-`okf.py lint` on the result before committing it.
+`okf.py` writes index bullets as `-`, as Biome does, and pins unquoted, which
+Biome leaves as they are, so `bun run format` and `okf.py index --write` converge and do not
+fight over the same lines.
+
+After upgrading Biome, run `bun run format`, then `okf.py index --write` and
+`okf.py lint`, and check they still converge: a second `bun run format` should
+report no fixes.

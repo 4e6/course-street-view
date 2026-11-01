@@ -10,9 +10,9 @@ tags: [street-view, navigation]
 Stepping along a course by looking up the panorama nearest to a point a little
 further on:
 
-* **Imagery jumps between years** on consecutive steps — tested on the
+- **Imagery jumps between years** on consecutive steps — tested on the
   Champs-Élysées it went 2026 → 2023 → 2021 → 2008.
-* **Steps barely move.** A Google walking capture on a park path beside the
+- **Steps barely move.** A Google walking capture on a park path beside the
   road was nearer than the road, and its panoramas are ~3 m apart.
 
 Clicking Google's own arrows on the same road does neither.

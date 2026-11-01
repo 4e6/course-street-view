@@ -14,7 +14,7 @@ sources_digest: 263b1f031faf3ac3
 
 The only code that moves the Street View panorama. Every input — the profile
 slider, step buttons, play, a map tap, "Back to course" — becomes a request to
-Rider, and every move made *inside* Street View (Google's arrows, click-to-go)
+Rider, and every move made _inside_ Street View (Google's arrows, click-to-go)
 arrives back at Rider through the panorama's position change. Rider resolves
 both into one state: [s](/domain/s.md), distance off course, imagery date, and
 whether there is imagery at all. The UI only renders that state.
@@ -24,11 +24,11 @@ drawing.
 
 # Two directions, one state
 
-* **App → Street View:** turn `s` into a point, find a panorama, show it facing
-  along the course. A *step* follows Street View's arrows rather than the
+- **App → Street View:** turn `s` into a point, find a panorama, show it facing
+  along the course. A _step_ follows Street View's arrows rather than the
   nearest panorama — why is
   [the nearest panorama is not continuous](/gotchas/nearest-panorama-is-not-continuous.md).
-* **Street View → app:** project the new position onto the course with the
+- **Street View → app:** project the new position onto the course with the
   rider's previous position as context, then flag off-course when it lands too
   far from the line.
 
@@ -59,11 +59,11 @@ Those are checked by hand in a visible browser window — see
 
 # Decisions
 
-* [One panorama per page](/decisions/0001-one-panorama-per-page.md) — why
+- [One panorama per page](/decisions/0001-one-panorama-per-page.md) — why
   Rider re-points a single panorama and never creates another.
 
 # Gotchas
 
-* [The nearest panorama is not the next one along the road](/gotchas/nearest-panorama-is-not-continuous.md)
-* [Page CSS and Google's Street View DOM collide](/gotchas/street-view-dom-and-page-css.md)
-* [Hidden tabs do not render Street View](/gotchas/hidden-tab-street-view.md)
+- [The nearest panorama is not the next one along the road](/gotchas/nearest-panorama-is-not-continuous.md)
+- [Page CSS and Google's Street View DOM collide](/gotchas/street-view-dom-and-page-css.md)
+- [Hidden tabs do not render Street View](/gotchas/hidden-tab-street-view.md)

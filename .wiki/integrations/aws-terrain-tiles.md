@@ -16,11 +16,11 @@ sources:
 
 A public S3 bucket of Web-Mercator elevation tiles, built by Mapzen's joerd
 from several models and kept on AWS Open Data.[^registry] The app uses the
-*terrarium* PNGs, where elevation in metres is `R·256 + G + B/256 − 32768`.[^formats]
+_terrarium_ PNGs, where elevation in metres is `R·256 + G + B/256 − 32768`.[^formats]
 
-* **No key, no billing**, and served with `Access-Control-Allow-Origin: *`, so
+- **No key, no billing**, and served with `Access-Control-Allow-Origin: *`, so
   a static site can fetch them straight from the browser.
-* **The source model varies by tile.** The response header
+- **The source model varies by tile.** The response header
   `x-amz-meta-x-imagery-sources` names it; around Vermelha, PT it is
   `eudem`. Elsewhere it may be SRTM or coarser, so quality is not uniform.
 

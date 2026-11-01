@@ -28,13 +28,13 @@ hardest logic in the app run under `bun test` with no browser and no API key.
 good answers for one point, and picking the merely-closer one teleports the
 rider to the other leg. So it:
 
-* searches a window around the current `s` first (a little behind, more
+- searches a window around the current `s` first (a little behind, more
   ahead), and widens to the whole course only when nothing in the window is
   close — the window is what separates the two legs of an out-and-back or two
   laps;
-* penalises segments that face against the direction of travel, which settles
+- penalises segments that face against the direction of travel, which settles
   the case the window cannot: near a turnaround both legs are inside it;
-* adds a slight preference for staying near the current `s`, to break exact
+- adds a slight preference for staying near the current `s`, to break exact
   ties between passes.
 
 The penalties are in metres, so they trade off directly against distance. The
@@ -48,5 +48,5 @@ has both; segments and tracks are concatenated in file order.
 
 # Used by
 
-* [Rider](/architecture/rider.md) — every Street View move goes through `locate`.
-* The map and profile, for drawing and for turning taps into `s`.
+- [Rider](/architecture/rider.md) — every Street View move goes through `locate`.
+- The map and profile, for drawing and for turning taps into `s`.

@@ -7,25 +7,25 @@ tags: [street-view, css]
 
 # Symptoms
 
-* **Street View shows no arrows** although the panorama has links and
+- **Street View shows no arrows** although the panorama has links and
   `linksControl` is on. Click-to-go still works, which makes it look like a
   Google setting.
-* **HUD, buttons and banners vanish** over Street View though they are in the
+- **HUD, buttons and banners vanish** over Street View though they are in the
   DOM, positioned and not hidden.
 
 # Causes
 
-* Google draws the arrows as inline SVG in the page's own DOM. A global
+- Google draws the arrows as inline SVG in the page's own DOM. A global
   `svg { fill: none; width: 20px; … }` meant for icon buttons styles them too,
   and they become invisible.
-* The panorama's internal layers carry z-indexes. Without a stacking context on
+- The panorama's internal layers carry z-indexes. Without a stacking context on
   the panorama's container they compete with — and beat — sibling overlays.
 
 # Fix
 
-* Never style bare element selectors (`svg`, `canvas`, `img`, `div`) that
+- Never style bare element selectors (`svg`, `canvas`, `img`, `div`) that
   also exist inside Google's widgets; scope to app classes.
-* Give the panorama container its own stacking context (`z-index: 0` on a
+- Give the panorama container its own stacking context (`z-index: 0` on a
   positioned element) and the overlays a higher one.
 
 # Related
