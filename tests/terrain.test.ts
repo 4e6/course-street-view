@@ -1,5 +1,7 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
+import { readFileSync } from "node:fs"
 import { deflateSync } from "node:zlib"
+import { nth } from "../src/assert.ts"
 import { Course, type CoursePoint } from "../src/course.ts"
 import { distance } from "../src/geo.ts"
 import {
@@ -7,13 +9,18 @@ import {
   decodeTerrarium,
   decodeTerrariumTile,
   densify,
+  fetchSrtmTile,
+  fetchTerrariumTile,
   type GetTile,
+  SMOOTHING,
   sampleElevation,
+  smoothElevations,
   type Tile,
   tileOf,
   withTerrainElevation,
   worldPixel,
 } from "../src/terrain.ts"
+import crops from "./fixtures/route-crops.json"
 import { ORIGIN, offset, path } from "./helpers.ts"
 
 const FIXTURE = new URL("./fixtures/terrarium-13-3888-3123.png", import.meta.url)
@@ -272,7 +279,7 @@ describe("withTerrainElevation", () => {
       return flat(x)
     }
     const progress: [number, number][] = []
-    const result = await withTerrainElevation(line, {
+    const { points: result } = await withTerrainElevation(line, {
       getTile,
       onProgress: (done, total) => progress.push([done, total]),
     })
@@ -352,5 +359,322 @@ describe("withTerrainElevation", () => {
     await new Promise((resolve) => setTimeout(resolve, 60))
     expect(started).toBe(startedAtAbort)
     expect(startedAtAbort).toBeLessThan(13)
+  })
+
+  test("a failed v2 tile stops the v2 attempt early, before the fallback", async () => {
+    let v2Started = 0
+    const v1Loads: number[] = []
+    const getSrtmTile: GetTile = (_z, x) => {
+      v2Started++
+      // The first tile fails; the others are slow, so the six workers are all busy when it does.
+      if (v2Started === 1) {
+        return new Promise((_resolve, reject) => setTimeout(() => reject(new Error("403")), 5))
+      }
+      return new Promise((resolve) =>
+        setTimeout(() => resolve({ ...flat(x), sources: ["srtm/N39W010.tif"] }), 30),
+      )
+    }
+    const getTile: GetTile = async (_z, x) => {
+      v1Loads.push(x)
+      return flat(x)
+    }
+    await withTerrainElevation(line, { getTile, getSrtmTile })
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    expect(v1Loads.length).toBeGreaterThan(6)
+    expect(v2Started).toBeLessThanOrEqual(6)
+    expect(v2Started).toBeLessThan(v1Loads.length)
+  })
+})
+
+describe("smoothElevations", () => {
+  /** A west-to-east road with a point every `step` metres and elevation `ele(s)`. */
+  const road = (length: number, ele: (s: number) => number, step = 10) =>
+    path(
+      [
+        [0, 0],
+        [length, 0],
+      ],
+      step,
+    ).map((p, i, all) => ({ ...p, ele: ele((i * length) / (all.length - 1)) }))
+  /** Cosine-shaped dip of `depth` metres and `width` metres, centred at `at`. */
+  const dip = (depth: number, width: number, at: number) => (s: number) =>
+    Math.abs(s - at) < width / 2
+      ? (-depth * (1 + Math.cos((2 * Math.PI * (s - at)) / width))) / 2
+      : 0
+  const minGrade = (points: CoursePoint[], from: number, to: number) => {
+    const course = new Course(points)
+    let min = Infinity
+    for (let s = from; s <= to; s += 10) min = Math.min(min, course.gradeAt(s) ?? Infinity)
+    return min
+  }
+  const SIGMA = SMOOTHING.srtm
+
+  test("a 6 m dip over 150 m on a 4 % climb no longer reads as a descent", () => {
+    const raw = road(3000, (s) => 0.04 * s + dip(6, 150, 1500)(s))
+    expect(minGrade(raw, 500, 2500)).toBeLessThan(-1.5)
+    expect(minGrade(smoothElevations(raw, SMOOTHING.srtm), 500, 2500)).toBeGreaterThan(0)
+    expect(minGrade(smoothElevations(raw, SMOOTHING.eudem), 500, 2500)).toBeGreaterThan(1.5)
+  })
+
+  test("an 8 m dip over 300 m on a 1.5 % climb is still a descent", () => {
+    const raw = road(3000, (s) => 0.015 * s + dip(8, 300, 1500)(s))
+    expect(minGrade(smoothElevations(raw, SIGMA), 500, 2500)).toBeLessThan(-2)
+  })
+
+  test("uneven spacing smooths the same as even spacing", () => {
+    const ele = (s: number) => 0.03 * s + dip(5, 200, 1000)(s)
+    const even = road(2000, ele, 5)
+    // Every other point dropped over a stretch, and a long gap: same road, fewer samples.
+    const uneven = even.filter((_, i) => i % 40 > 3 || i % 2 === 0)
+    const a = new Course(smoothElevations(even, SIGMA))
+    const b = new Course(smoothElevations(uneven, SIGMA))
+    expect(uneven.length).toBeLessThan(even.length)
+    for (let s = 0; s <= 2000; s += 50) {
+      expect(Math.abs((a.elevationAt(s) ?? NaN) - (b.elevationAt(s) ?? NaN))).toBeLessThan(0.05)
+    }
+  })
+
+  test("leaves a straight slope alone, ends included", () => {
+    const smoothed = smoothElevations(
+      road(1000, (s) => 100 + 0.06 * s),
+      60,
+    )
+    const course = new Course(smoothed)
+    expect(course.elevationAt(0)).toBeCloseTo(100, 6)
+    expect(course.elevationAt(course.length)).toBeCloseTo(160, 3)
+    for (let s = 0; s <= course.length; s += 25) expect(course.gradeAt(s)).toBeCloseTo(6, 1)
+  })
+
+  test("keeps every point and its position", () => {
+    const raw = road(500, (s) => s / 10)
+    const smoothed = smoothElevations(raw, 35)
+    expect(smoothed.map(({ lat, lng }) => ({ lat, lng }))).toEqual(
+      raw.map(({ lat, lng }) => ({ lat, lng })),
+    )
+  })
+})
+
+describe("terrain model choice on a real road", () => {
+  // Two stretches of EN 115 near Vermelha, PT (OpenStreetMap; see fixtures/README.md), with the real
+  // tiles of the default build (v1, EU-DEM) and of the `v2` build (SRTM) under them.
+  const TILES = ["3888/3125", "3888/3126", "3888/3122", "3889/3122"]
+  const bytes = new Map<string, Uint8Array>()
+  const SOURCES = { v1: "eudem/eudem_dem_5deg_n35w010.tif", v2: "srtm/N39W010.tif" }
+  for (const variant of ["v1", "v2"]) {
+    for (const tile of TILES) {
+      const file = new URL(
+        `./fixtures/terrarium-${variant}-13-${tile.replace("/", "-")}.png`,
+        import.meta.url,
+      )
+      bytes.set(`${variant}/${tile}`, new Uint8Array(readFileSync(file)))
+    }
+  }
+
+  interface Fake {
+    getTile: GetTile
+    getSrtmTile: GetTile
+    loads: { v1: string[]; v2: string[] }
+  }
+  /** Getters serving the fixtures; `sources` and `fail` let a test make v2 (or v1) look different. */
+  function fake(
+    options: { v2Sources?: string[]; v1Sources?: string[]; failV2?: boolean } = {},
+  ): Fake {
+    const loads = { v1: [] as string[], v2: [] as string[] }
+    const serve =
+      (variant: "v1" | "v2", sources: string[] | undefined): GetTile =>
+      async (z, x, y) => {
+        loads[variant].push(`${z}/${x}/${y}`)
+        if (variant === "v2" && options.failV2) throw new Error("Terrain tile failed (403).")
+        const png = bytes.get(`${variant}/${x}/${y}`)
+        if (z !== 13 || !png) throw new Error(`no fixture for ${variant} ${z}/${x}/${y}`)
+        const tile = await decodeTerrariumTile(png)
+        return sources ? { ...tile, sources } : tile
+      }
+    return {
+      getTile: serve("v1", options.v1Sources ?? [SOURCES.v1]),
+      getSrtmTile: serve("v2", options.v2Sources ?? [SOURCES.v2]),
+      loads,
+    }
+  }
+
+  const route = (name: "site" | "vermelha") =>
+    crops[name].map((p): CoursePoint => ({ lat: nth(p, 0), lng: nth(p, 1), ele: null }))
+  const site = route("site")
+  const vermelha = route("vermelha")
+
+  // Stretches in metres along each crop (crop-local, from its start), found once from the fixture.
+  const AT_38_25 = [284, 334] as const
+  const AT_39_2 = [1215, 1325] as const
+  const VERMELHA = [610, 860] as const
+
+  const minOver = (course: Course, [from, to]: readonly [number, number]) => {
+    let min = Infinity
+    for (let s = from; s <= to; s += 10) min = Math.min(min, course.gradeAt(s) ?? Infinity)
+    return min
+  }
+  /** The most the course falls below its own highest point so far, over the stretch. */
+  const dropOver = (course: Course, [from, to]: readonly [number, number]) => {
+    let high = -Infinity
+    let drop = 0
+    for (let s = from; s <= to; s += 10) {
+      const e = course.elevationAt(s) ?? NaN
+      high = Math.max(high, e)
+      drop = Math.max(drop, high - e)
+    }
+    return drop
+  }
+
+  test("uses SRTM, smoothed, where every tile is SRTM", async () => {
+    const f = fake()
+    const result = await withTerrainElevation(site, f)
+    expect(result.source).toBe("srtm")
+    expect(f.loads.v1).toEqual([])
+    const course = new Course(result.points)
+    // The road climbs through both stretches; the EU-DEM said it fell (-2.0 and -6.2 % raw).
+    expect(minOver(course, AT_38_25)).toBeGreaterThan(1)
+    expect(minOver(course, AT_39_2)).toBeGreaterThan(0)
+  })
+
+  test("smoothing is what lifts the 38.25 km stretch above +1 %", async () => {
+    // The same SRTM tiles with the source hidden: no smoothing, and the dip is still there.
+    const f = fake({ v2Sources: [SOURCES.v2] })
+    const raw = await withTerrainElevation(site, {
+      getTile: async (...a) => ({ ...(await f.getSrtmTile(...a)), sources: [] }),
+    })
+    expect(raw.source).toBe("other")
+    expect(minOver(new Course(raw.points), AT_38_25)).toBeLessThan(1)
+  })
+
+  test("EU-DEM alone, even smoothed, does not clear the 39.2 km stretch", async () => {
+    const result = await withTerrainElevation(site, { getTile: fake().getTile })
+    expect(result.source).toBe("eudem")
+    const course = new Course(result.points)
+    expect(minOver(course, AT_38_25)).toBeGreaterThan(1)
+    expect(minOver(course, AT_39_2)).toBeLessThan(-1)
+  })
+
+  test("unsmoothed EU-DEM is what main did: false descents at both stretches", async () => {
+    const f = fake({ v1Sources: [] })
+    const result = await withTerrainElevation(site, { getTile: f.getTile })
+    const course = new Course(result.points)
+    expect(minOver(course, AT_38_25)).toBeLessThan(-1.5)
+    expect(minOver(course, AT_39_2)).toBeLessThan(-5)
+  })
+
+  test("a real dip survives: Vermelha keeps most of its depth and a steep descent", async () => {
+    const course = new Course((await withTerrainElevation(vermelha, fake())).points)
+    expect(dropOver(course, VERMELHA)).toBeGreaterThanOrEqual(4.3)
+    expect(minOver(course, VERMELHA)).toBeLessThan(-3.5)
+  })
+
+  test("the smoothing widths stay in the band the course was tuned on", () => {
+    expect(SMOOTHING.srtm).toBeGreaterThanOrEqual(32)
+    expect(SMOOTHING.srtm).toBeLessThanOrEqual(37)
+    expect(SMOOTHING.eudem).toBeGreaterThanOrEqual(50)
+    expect(SMOOTHING.eudem).toBeLessThanOrEqual(70)
+  })
+
+  describe("falls back to the default tiles for the whole course", () => {
+    const cases: [string, Parameters<typeof fake>[0]][] = [
+      ["a tile from gmted", { v2Sources: ["gmted/gmted_mea075.tif"] }],
+      ["a tile with no source header", { v2Sources: [] }],
+      ["a tile mixing srtm and eudem", { v2Sources: [SOURCES.v2, SOURCES.v1] }],
+      ["a tile that fails to load", { failV2: true }],
+    ]
+    test.each(cases)("%s", async (_name, options) => {
+      const f = fake(options)
+      const progress: [number, number][] = []
+      const result = await withTerrainElevation(site, {
+        ...f,
+        onProgress: (done, total) => progress.push([done, total]),
+      })
+      const v1Only = await withTerrainElevation(site, { getTile: fake().getTile })
+      expect(result.source).toBe("eudem")
+      expect(result.points).toEqual(v1Only.points)
+      // Each default tile exactly once.
+      expect(f.loads.v1.length).toBe(new Set(f.loads.v1).size)
+      expect(new Set(f.loads.v1).size).toBeGreaterThan(0)
+      // The abandoned attempt leaves no trace: the count restarts at zero and ends complete.
+      const total = progress[0]?.[1] ?? 0
+      expect(progress.filter(([done]) => done === 0).length).toBe(2)
+      expect(progress[progress.length - 1]).toEqual([total, total])
+    })
+  })
+
+  test("a cancelled load does not fall back", async () => {
+    const f = fake()
+    const controller = new AbortController()
+    const slow: GetTile = (_z, _x, _y, signal) =>
+      new Promise((_resolve, reject) =>
+        signal?.addEventListener("abort", () => reject(signal.reason)),
+      )
+    let aborted = false
+    const reported: [number, number][] = []
+    const result = withTerrainElevation(site, {
+      getTile: f.getTile,
+      getSrtmTile: slow,
+      signal: controller.signal,
+      onProgress: (done, total) => {
+        if (aborted) reported.push([done, total])
+      },
+    })
+    setTimeout(() => {
+      aborted = true
+      controller.abort()
+    }, 10)
+    await expect(result).rejects.toThrow()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(f.loads.v1).toEqual([])
+    expect(reported).toEqual([])
+  })
+
+  test("default tiles from a national model are not smoothed", async () => {
+    const f = fake({ v1Sources: ["pgdc_5m/some.tif"], failV2: true })
+    const result = await withTerrainElevation(site, f)
+    expect(result.source).toBe("other")
+    const tiles = new Map<string, Tile>()
+    for (const key of TILES) {
+      tiles.set(key, await decodeTerrariumTile(bytes.get(`v1/${key}`) as Uint8Array))
+    }
+    for (const p of result.points) {
+      const direct = sampleElevation(p.lat, p.lng, 13, (x, y) => tiles.get(`${x}/${y}`) as Tile)
+      expect(p.ele).toBe(direct)
+    }
+  })
+})
+
+describe("fetching tiles", () => {
+  const realFetch = globalThis.fetch
+  afterEach(() => {
+    globalThis.fetch = realFetch
+  })
+  const png = new Uint8Array(
+    readFileSync(new URL("./fixtures/terrarium-v2-13-3888-3122.png", import.meta.url)),
+  )
+  const stub = (headers: Record<string, string>) => {
+    const urls: string[] = []
+    globalThis.fetch = (async (url: string) => {
+      urls.push(url)
+      return new Response(png, { headers })
+    }) as unknown as typeof fetch
+    return urls
+  }
+
+  test("reads every model from the imagery-sources header", async () => {
+    const urls = stub({ "x-amz-meta-x-imagery-sources": "srtm/N39W010.tif, srtm/N39W009.tif" })
+    const tile = await fetchSrtmTile(13, 3888, 3122)
+    expect(tile.sources).toEqual(["srtm/N39W010.tif", "srtm/N39W009.tif"])
+    expect(urls[0]).toContain("/v2/")
+    expect(urls[0]).toEndWith("/13/3888/3122.png")
+    stub({ "x-amz-meta-x-imagery-sources": "eudem/a.tif,gmted/b.tif" })
+    expect((await fetchTerrariumTile(13, 3888, 3122)).sources).toEqual([
+      "eudem/a.tif",
+      "gmted/b.tif",
+    ])
+  })
+
+  test("a response without the header has no sources, so the SRTM gate stays closed", async () => {
+    stub({})
+    expect((await fetchSrtmTile(13, 3888, 3122)).sources).toEqual([])
   })
 })

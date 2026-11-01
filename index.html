@@ -124,10 +124,12 @@
           <label class="choice">
             <input type="radio" name="elevation" value="terrain" />
             <span>
-              Terrain model (EU-DEM / SRTM, ~25–30 m)
+              Terrain model (SRTM / EU-DEM, ~25–30 m)
               <small id="elevation-terrain-why">
-                Measured terrain height. Shows dips and ramps, but can place them a few tens of
-                metres off and gets bridges and tunnels wrong.
+                Measured terrain height. Smoothed along the road when the tiles are purely SRTM or
+                purely EU-DEM; tiles of any other or mixed origin are shown as is. Shows dips and ramps, but can soften
+                short ones, place them a few tens of metres off and get bridges and tunnels
+                wrong.
               </small>
             </span>
           </label>

@@ -17,11 +17,33 @@ export const MAX_SPACING = 10
 /** Tiles in flight at once; browsers allow six connections per host anyway. */
 const CONCURRENCY = 6
 
-const TILE_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium"
+const BUCKET = "https://s3.amazonaws.com/elevation-tiles-prod"
+/** Today's tiles: EU-DEM in Europe, other models elsewhere. */
+const TILE_URL = `${BUCKET}/terrarium`
+/** An older build of the same bucket; in much of Europe its z13 tiles are SRTM. */
+const SRTM_TILE_URL = `${BUCKET}/v2/terrarium`
+
+/**
+ * Gaussian smoothing applied to the sampled elevations, in metres of distance
+ * along the course (the standard deviation). Elevation noise of a couple of
+ * metres turns into grade noise of several percent once it is differenced over
+ * 100 m; the SRTM data is quieter and needs about half the smoothing.
+ */
+export const SMOOTHING = { srtm: 35, eudem: 60 }
 
 /** One decoded 256x256 tile: metres above sea level, row-major from the top-left. */
 export interface Tile {
   readonly elevations: Float32Array
+  /** Models the tile was built from (`x-amz-meta-x-imagery-sources`), when known. */
+  readonly sources?: readonly string[]
+}
+
+/** Which model a course's elevations came from. */
+export type TerrainSource = "srtm" | "eudem" | "other"
+
+export interface TerrainElevation {
+  points: CoursePoint[]
+  source: TerrainSource
 }
 
 export type GetTile = (z: number, x: number, y: number, signal?: AbortSignal) => Promise<Tile>
@@ -160,27 +182,46 @@ async function runPool<T>(
 }
 
 export interface TerrainOptions {
+  /** The default tiles (v1): the fallback, and the only source when `getSrtmTile` is absent. */
   getTile: GetTile
+  /** The SRTM-era tiles (v2), tried first; used for the whole course or not at all. */
+  getSrtmTile?: GetTile
   /** Aborts outstanding tile requests; the returned promise then rejects. */
   signal?: AbortSignal
-  /** Called as tiles arrive, with how many are done of how many are needed; never after a failure. */
+  /**
+   * Called as tiles arrive, with how many are done of how many are needed. Nothing follows a
+   * failure, except that the count restarts at 0 when the default tiles are tried instead.
+   */
   onProgress?: (done: number, total: number) => void
 }
 
-/**
- * `points` densified to at most `MAX_SPACING` between neighbours, each with
- * its elevation taken from the terrain model (the GPX's own is discarded).
- * Each tile is fetched once. One failed tile fails the load and cancels the
- * requests still in flight, so they stop downloading and reporting progress.
- */
-export async function withTerrainElevation(
-  points: readonly CoursePoint[],
-  { getTile, signal, onProgress }: TerrainOptions,
-): Promise<CoursePoint[]> {
-  const dense = densify(points)
-  const needed = new Set<string>()
-  for (const p of dense) for (const key of tilesFor(p.lat, p.lng, TERRAIN_ZOOM)) needed.add(key)
+/** Thrown when a tile is valid but not from the model the course needs. */
+class WrongSource extends Error {}
 
+/** True when the tile is built wholly from SRTM data: a missing or empty list is not. */
+function isSrtm(tile: Tile): boolean {
+  const sources = tile.sources ?? []
+  return sources.length > 0 && sources.every((s) => s.startsWith("srtm/"))
+}
+
+/** True when the tile is built wholly from EU-DEM data. */
+function isEudem(tile: Tile): boolean {
+  const sources = tile.sources ?? []
+  return sources.length > 0 && sources.every((s) => s.startsWith("eudem/"))
+}
+
+/**
+ * Fetches every tile in `keys` from `getTile`. One failed (or `accept`-rejected)
+ * tile fails the load and cancels the requests still in flight, so they stop
+ * downloading and reporting progress.
+ */
+async function loadTiles(
+  keys: readonly string[],
+  getTile: GetTile,
+  accept: (tile: Tile) => boolean,
+  signal: AbortSignal | undefined,
+  onProgress: ((done: number, total: number) => void) | undefined,
+): Promise<Map<string, Tile>> {
   // Aborted by the caller, or by this load's own first failure.
   const stop = new AbortController()
   const forward = () => stop.abort(signal?.reason)
@@ -188,7 +229,6 @@ export async function withTerrainElevation(
   signal?.addEventListener("abort", forward)
 
   const tiles = new Map<string, Tile>()
-  const keys = [...needed]
   onProgress?.(0, keys.length)
   try {
     await runPool(
@@ -199,6 +239,7 @@ export async function withTerrainElevation(
         let tile: Tile
         try {
           tile = await getTile(nth(parts, 0), nth(parts, 1), nth(parts, 2), stop.signal)
+          if (!accept(tile)) throw new WrongSource(`Terrain tile ${key} is from another model.`)
         } catch (e) {
           // Abort here, not after the rejection has worked its way out of the
           // pool, so no other tile can report progress in between.
@@ -217,13 +258,110 @@ export async function withTerrainElevation(
   } finally {
     signal?.removeEventListener("abort", forward)
   }
+  return tiles
+}
 
-  return dense.map((p) => ({
+/**
+ * `points` densified to at most `MAX_SPACING` between neighbours, each with
+ * its elevation taken from the terrain model (the GPX's own is discarded),
+ * then smoothed along the course.
+ *
+ * One model serves the whole course, never a mix, because elevation steps
+ * where two models meet would read as grade spikes. The SRTM tiles are tried
+ * first and used only if every tile needed is built from SRTM alone; if any
+ * fails to load or is from another model, the whole course is loaded again from
+ * the default tiles. Each tile is fetched once per attempt. A load cancelled
+ * through `signal` never falls back.
+ */
+export async function withTerrainElevation(
+  points: readonly CoursePoint[],
+  { getTile, getSrtmTile, signal, onProgress }: TerrainOptions,
+): Promise<TerrainElevation> {
+  const dense = densify(points)
+  const needed = new Set<string>()
+  for (const p of dense) for (const key of tilesFor(p.lat, p.lng, TERRAIN_ZOOM)) needed.add(key)
+  const keys = [...needed]
+
+  let tiles: Map<string, Tile> | null = null
+  let source: TerrainSource = "other"
+  if (getSrtmTile) {
+    try {
+      tiles = await loadTiles(keys, getSrtmTile, isSrtm, signal, onProgress)
+      source = "srtm"
+    } catch (e) {
+      // A cancelled load is not a reason to start another.
+      if (signal?.aborted) throw e
+    }
+  }
+  if (!tiles) {
+    tiles = await loadTiles(keys, getTile, () => true, signal, onProgress)
+    // Smooth only what is known to be noisy: national high-resolution models
+    // are better left as they are.
+    if ([...tiles.values()].every(isEudem)) source = "eudem"
+  }
+  const loaded = tiles
+
+  const sampled = dense.map((p) => ({
     ...p,
     ele: sampleElevation(p.lat, p.lng, TERRAIN_ZOOM, (x, y) =>
-      defined(tiles.get(tileKey(TERRAIN_ZOOM, x, y)), `tile ${x}/${y}`),
+      defined(loaded.get(tileKey(TERRAIN_ZOOM, x, y)), `tile ${x}/${y}`),
     ),
   }))
+  const sigma = source === "srtm" ? SMOOTHING.srtm : source === "eudem" ? SMOOTHING.eudem : 0
+  return { points: sigma > 0 ? smoothElevations(sampled, sigma) : sampled, source }
+}
+
+// ---------------------------------------------------------------------------
+// Smoothing
+
+/**
+ * `points` with each elevation replaced by a Gaussian-weighted average of its
+ * neighbours' within 3 sigma, weighted by distance along the course (and by
+ * the stretch of course each point stands for, as the spacing is uneven).
+ *
+ * The course's ends are padded by reflecting the elevations through the end
+ * point (a point reflection), which keeps a straight slope straight; plain
+ * renormalising would pull the end elevations towards the middle of the slope
+ * and bend the grade there.
+ */
+export function smoothElevations(points: readonly CoursePoint[], sigma: number): CoursePoint[] {
+  const n = points.length
+  if (n < 2) return [...points]
+  const s = new Float64Array(n)
+  for (let i = 1; i < n; i++) s[i] = (s[i - 1] ?? 0) + distance(nth(points, i - 1), nth(points, i))
+  const ele = points.map((p) => defined(p.ele, "elevation to smooth"))
+  const at = (i: number) => nth(s, i)
+  // The stretch of course each point stands for. An end point stands for a whole
+  // gap: its reflection is not a separate point to take the other half.
+  const span = (i: number) =>
+    i === 0 ? at(1) - at(0) : i === n - 1 ? at(n - 1) - at(n - 2) : (at(i + 1) - at(i - 1)) / 2
+  const reach = 3 * sigma
+  const first = at(0)
+  const last = at(n - 1)
+
+  return points.map((p, i) => {
+    const here = at(i)
+    let sum = 0
+    let weight = 0
+    const add = (distanceAway: number, value: number, j: number) => {
+      const w = Math.exp(-(distanceAway * distanceAway) / (2 * sigma * sigma)) * span(j)
+      sum += w * value
+      weight += w
+    }
+    for (let j = i; j >= 0 && here - at(j) <= reach; j--) add(here - at(j), nth(ele, j), j)
+    for (let j = i + 1; j < n && at(j) - here <= reach; j++) add(at(j) - here, nth(ele, j), j)
+    if (here - first < reach) {
+      for (let j = 1; j < n && at(j) - first <= reach - (here - first); j++) {
+        add(here - (2 * first - at(j)), 2 * nth(ele, 0) - nth(ele, j), j)
+      }
+    }
+    if (last - here < reach) {
+      for (let j = n - 2; j >= 0 && last - at(j) <= reach - (last - here); j--) {
+        add(2 * last - at(j) - here, 2 * nth(ele, n - 1) - nth(ele, j), j)
+      }
+    }
+    return { ...p, ele: sum / weight }
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -352,9 +490,23 @@ export async function decodeTerrariumTile(png: Uint8Array): Promise<Tile> {
   return { elevations }
 }
 
-/** Fetches and decodes one tile from the AWS bucket. */
-export const fetchTerrariumTile: GetTile = async (z, x, y, signal) => {
-  const response = await fetch(`${TILE_URL}/${z}/${x}/${y}.png`, { signal })
-  if (!response.ok) throw new Error(`Terrain tile ${z}/${x}/${y} failed (${response.status}).`)
-  return decodeTerrariumTile(new Uint8Array(await response.arrayBuffer()))
-}
+const fetchFrom =
+  (base: string): GetTile =>
+  async (z, x, y, signal) => {
+    const response = await fetch(`${base}/${z}/${x}/${y}.png`, { signal })
+    if (!response.ok) throw new Error(`Terrain tile ${z}/${x}/${y} failed (${response.status}).`)
+    const tile = await decodeTerrariumTile(new Uint8Array(await response.arrayBuffer()))
+    // Absent when the bucket's CORS headers stop exposing it; then the tile is unknown, not trusted.
+    const header = response.headers.get("x-amz-meta-x-imagery-sources") ?? ""
+    const sources = header
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s !== "")
+    return { ...tile, sources }
+  }
+
+/** Fetches and decodes one tile from the AWS bucket (the default build). */
+export const fetchTerrariumTile: GetTile = fetchFrom(TILE_URL)
+
+/** Fetches and decodes one tile from the bucket's `v2` build, which is SRTM in much of Europe. */
+export const fetchSrtmTile: GetTile = fetchFrom(SRTM_TILE_URL)
