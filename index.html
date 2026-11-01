@@ -20,7 +20,7 @@
         <span>Open GPX</span>
       </button>
       <button id="open-settings" class="button icon" type="button" aria-label="Settings">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9 7 7m10 10 2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1" /></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4.14L10.5 1.61 13.5 1.61 13.5 4.14A8 8 0 0 1 16.5 5.38L18.29 3.59 20.41 5.71 18.62 7.5A8 8 0 0 1 19.86 10.5L22.39 10.5 22.39 13.5 19.86 13.5A8 8 0 0 1 18.62 16.5L20.41 18.29 18.29 20.41 16.5 18.62A8 8 0 0 1 13.5 19.86L13.5 22.39 10.5 22.39 10.5 19.86A8 8 0 0 1 7.5 18.62L5.71 20.41 3.59 18.29 5.38 16.5A8 8 0 0 1 4.14 13.5L1.61 13.5 1.61 10.5 4.14 10.5A8 8 0 0 1 5.38 7.5L3.59 5.71 5.71 3.59 7.5 5.38A8 8 0 0 1 10.5 4.14Z" /><circle cx="12" cy="12" r="3" /></svg>
       </button>
       <input id="file" type="file" accept=".gpx,application/gpx+xml" hidden />
     </header>
@@ -105,18 +105,31 @@
 
     <dialog id="settings" class="dialog">
       <form method="dialog">
-        <h2>Settings</h2>
+        <h2 id="settings-title">Settings</h2>
 
-        <fieldset class="setting">
+        <fieldset id="elevation-setting" class="setting">
           <legend>Elevation</legend>
-          <p class="hint">Where the profile, elevation and grade come from. Applies immediately.</p>
+          <p class="hint">
+            Where the profile, elevation and grade come from. Changes apply right away.
+          </p>
           <label class="choice">
-            <input type="radio" name="elevation" value="gpx" />
-            <span>From the GPX file</span>
+            <input type="radio" name="elevation" value="gpx" aria-describedby="elevation-gpx-why" />
+            <span>
+              From the GPX file
+              <small id="elevation-gpx-why">
+                As recorded or planned. Often smoothed, which can hide short dips and steep ramps.
+              </small>
+            </span>
           </label>
           <label class="choice">
-            <input type="radio" name="elevation" value="terrain" />
-            <span>Terrain model (EU-DEM / SRTM, ~25–30 m)</span>
+            <input type="radio" name="elevation" value="terrain" aria-describedby="elevation-terrain-why" />
+            <span>
+              Terrain model (EU-DEM / SRTM, ~25–30 m)
+              <small id="elevation-terrain-why">
+                Measured ground height. Shows dips and ramps, but can place them a few tens of
+                metres off and gets bridges and tunnels wrong.
+              </small>
+            </span>
           </label>
           <div class="elevation-status">
             <p id="elevation-status" class="hint" role="status"></p>
@@ -126,7 +139,7 @@
 
         <section class="setting" aria-labelledby="key-heading">
           <h3 id="key-heading">Google Maps API key</h3>
-          <p id="key-reason" class="key-reason" hidden></p>
+          <p id="key-reason" class="key-reason" role="alert" hidden></p>
           <p>
             This app shows Google Street View, which needs a Google Maps Platform key with the
             <strong>Maps JavaScript API</strong> enabled. A key you enter here is kept only in this
@@ -134,14 +147,26 @@
             <a href="https://developers.google.com/maps/documentation/javascript/get-api-key" target="_blank" rel="noopener">How to get a key</a>.
           </p>
           <label for="key-input">Your key</label>
-          <input id="key-input" type="text" autocomplete="off" spellcheck="false" placeholder="AIza…" />
+          <input
+            id="key-input"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="AIza…"
+            aria-describedby="key-builtin"
+          />
           <p id="key-builtin" class="hint"></p>
+          <div class="key-actions">
+            <button id="key-clear" class="button" type="button">Use built-in key</button>
+            <button id="key-save" class="button primary" type="button" disabled>
+              Save key and reload
+            </button>
+          </div>
+          <p class="hint key-note">Changing the key reloads the page.</p>
         </section>
 
         <div class="dialog-actions">
-          <button id="key-clear" class="button" type="button">Use built-in key</button>
-          <button value="cancel" class="button" type="submit">Close</button>
-          <button id="key-save" class="button primary" type="button">Save and reload</button>
+          <button id="settings-done" value="cancel" class="button" type="submit">Done</button>
         </div>
       </form>
     </dialog>

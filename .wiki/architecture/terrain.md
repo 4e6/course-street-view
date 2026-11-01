@@ -6,7 +6,7 @@ tags: [elevation, gradient, terrain]
 sources:
   - resource: src/terrain.ts
   - resource: src/main.ts
-sources_digest: cec4a576b4513c0d
+sources_digest: cd86b7fc121e1e31
 ---
 
 # Responsibility
@@ -26,6 +26,11 @@ segments, so [s](/domain/s.md) means the same distance in both.
 The choice is a global preference (default: the GPX). A course always opens
 with the GPX elevation first and swaps when the terrain has loaded. A newer
 file or a newer choice cancels a load still in progress.
+
+In Settings the choice applies the moment it is picked, with no Save. That is
+deliberate: the API key beside it needs a page reload, which is a new billed
+Maps load, so only the key sits behind a button of its own. A dialog-wide
+Save/Cancel pair read as covering both and confused users.
 
 # Why
 
