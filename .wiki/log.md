@@ -2,6 +2,7 @@
 
 ## 2026-11-01
 
+- **Update**: Terrain elevation now prefers the bucket's undocumented `v2` (SRTM) tiles when a whole course is SRTM, and smooths the result along the road (35 m SRTM, 60 m EU-DEM). [Terrain elevation](/architecture/terrain.md) records why (EU-DEM's noise read as false descents), the per-course source rule, the limits and the rejected alternatives; [AWS Terrain Tiles](/integrations/aws-terrain-tiles.md) records the two builds, with their evidence. The earlier "the fix has to be a different source" is kept, with the choice between models added.
 - **Update**: Instructions now live in `AGENTS.md` only, at the root and in the bundle; both `CLAUDE.md` files are gone, and the bundle's `AGENTS.md` carries the rules itself instead of pointing at a `CLAUDE.md`. Claude Code reads `AGENTS.md` but, by default, not where a `CLAUDE.md` sits beside or above it, and `AGENTS.md` is the convention other coding agents read too; one file per level cannot drift.
 - **Update**: Biome formats the wiki again: its front-matter parser is on and the formatter-off workaround is gone from `biome.json`. The gotcha is rewritten and retitled [Biome must parse front matter to format the wiki](/gotchas/biome-markdown-formatter-breaks-front-matter.md). About 15 pages were reformatted only (bullets, emphasis, a table, log spacing); no content changed.
 

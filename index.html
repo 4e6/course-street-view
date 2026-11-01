@@ -124,10 +124,11 @@
           <label class="choice">
             <input type="radio" name="elevation" value="terrain" />
             <span>
-              Terrain model (EU-DEM / SRTM, ~25–30 m)
+              Terrain model (SRTM / EU-DEM, ~25–30 m)
               <small id="elevation-terrain-why">
-                Measured terrain height. Shows dips and ramps, but can place them a few tens of
-                metres off and gets bridges and tunnels wrong.
+                Measured terrain height, smoothed along the road to damp the model's noise. Shows
+                dips and ramps, but softens short ones, can place them a few tens of metres off
+                and gets bridges and tunnels wrong.
               </small>
             </span>
           </label>

@@ -9,7 +9,12 @@ import { once } from "./once.ts"
 import { Profile } from "./profile.ts"
 import { Rider, type RiderState, toLatLng } from "./rider.ts"
 import { load, save } from "./storage.ts"
-import { fetchTerrariumTile, withTerrainElevation } from "./terrain.ts"
+import {
+  fetchSrtmTile,
+  fetchTerrariumTile,
+  type TerrainSource,
+  withTerrainElevation,
+} from "./terrain.ts"
 
 const COURSE_KEY = "csv.course"
 const POSITION_KEY = "csv.position"
@@ -72,6 +77,12 @@ const elevationSource = (): ElevationSource =>
  * have loaded (there is no course yet), so main() sets it once they have.
  */
 let onElevationChange: () => void = () => {}
+
+const TERRAIN_MODEL: Record<TerrainSource, string> = {
+  srtm: "Terrain model: SRTM, smoothed.",
+  eudem: "Terrain model: EU-DEM, smoothed.",
+  other: "",
+}
 
 function setElevationStatus(text: string, canRetry = false): void {
   $("elevation-status").textContent = text
@@ -230,6 +241,7 @@ async function main(): Promise<void> {
   let geometry: Course | null = null
   let elevation: Course | null = null
   let terrain: Course | null = null
+  let terrainSource: TerrainSource = "other"
   let gaps: Gap[] = []
   // Bumped whenever the course or the elevation choice changes, so a terrain
   // load that finishes late can tell it is no longer wanted.
@@ -350,7 +362,7 @@ async function main(): Promise<void> {
       return
     }
     if (terrain) {
-      setElevationStatus("")
+      setElevationStatus(TERRAIN_MODEL[terrainSource])
       if (elevation !== terrain) showElevation(terrain)
       return
     }
@@ -359,16 +371,18 @@ async function main(): Promise<void> {
     setElevationStatus("Loading terrain…")
     void withTerrainElevation(base.points, {
       getTile: fetchTerrariumTile,
+      getSrtmTile: fetchSrtmTile,
       signal: controller.signal,
       onProgress: (done, total) => {
         if (mine === generation) setElevationStatus(`Loading terrain… ${done}/${total}`)
       },
     }).then(
-      (points) => {
+      ({ points, source }) => {
         if (mine !== generation) return
         terrainLoad = null
         terrain = new Course(points)
-        setElevationStatus("")
+        terrainSource = source
+        setElevationStatus(TERRAIN_MODEL[source])
         showElevation(terrain)
       },
       (error: unknown) => {
