@@ -3,7 +3,6 @@ import { deflateSync } from "node:zlib"
 import { Course, type CoursePoint } from "../src/course.ts"
 import { distance } from "../src/geo.ts"
 import {
-  cachedTiles,
   decodePng,
   decodeTerrarium,
   decodeTerrariumTile,
@@ -258,6 +257,7 @@ describe("withTerrainElevation", () => {
       [40000, 0],
     ],
     500,
+    () => 9999,
   )
 
   test("fetches each tile once, at most six at a time", async () => {
@@ -286,41 +286,50 @@ describe("withTerrainElevation", () => {
 
     // Densified, every point has an elevation, and the GPX's own is not used.
     expect(result.length).toBeGreaterThan(line.length * 10)
-    expect(result.every((p) => p.ele !== null)).toBe(true)
+    // Away from tile edges a sample reads one tile only, so its value is that tile's column.
+    for (const p of result) {
+      const { x } = worldPixel(p.lat, p.lng, 13)
+      const inTile = x % 256
+      if (inTile > 1 && inTile < 255) expect(p.ele).toBe(Math.floor(x / 256) % 1000)
+    }
     expect(new Course(result).hasElevation).toBe(true)
     expect(distance(result[0] as CoursePoint, ORIGIN)).toBeLessThan(0.01)
     const last = result[result.length - 1] as CoursePoint
     expect(distance(last, offset(ORIGIN, 40000, 0))).toBeLessThan(0.5)
   })
 
-  test("concurrent requests for one tile share a fetch", async () => {
-    let fetches = 0
-    const getTile: GetTile = async (_z, x) => {
-      fetches++
-      await new Promise((resolve) => setTimeout(resolve, 5))
-      return flat(x)
+  test("a failed tile fails the load, cancels the rest and reports no progress after", async () => {
+    let failed = false
+    let aborted = 0
+    let started = 0
+    const getTile: GetTile = (_z, x, _y, signal) => {
+      started++
+      // The first tile fails fast; the others are slow, and ignore the abort
+      // on purpose so that a progress report after the failure would show.
+      if (started === 1) {
+        return new Promise((_resolve, reject) =>
+          setTimeout(() => {
+            failed = true
+            reject(new Error("offline"))
+          }, 5),
+        )
+      }
+      signal?.addEventListener("abort", () => aborted++)
+      return new Promise((resolve) => setTimeout(() => resolve(flat(x)), 30))
     }
-    const cached = cachedTiles(getTile)
-    await Promise.all([cached(13, 1, 1), cached(13, 1, 1), cached(13, 1, 1), cached(13, 2, 1)])
-    expect(fetches).toBe(2)
-  })
-
-  test("a failed tile is not remembered", async () => {
-    let fetches = 0
-    const cached = cachedTiles(async (_z, x) => {
-      if (++fetches === 1) throw new Error("offline")
-      return flat(x)
+    const late: number[] = []
+    const result = withTerrainElevation(line, {
+      getTile,
+      onProgress: (done) => {
+        if (failed) late.push(done)
+      },
     })
-    await expect(cached(13, 1, 1)).rejects.toThrow("offline")
-    await expect(cached(13, 1, 1)).resolves.toBeDefined()
-  })
-
-  test("a failed tile fails the whole load", async () => {
-    const getTile: GetTile = async (_z, x) => {
-      if (x % 2 === 0) throw new Error("offline")
-      return flat(x)
-    }
-    await expect(withTerrainElevation(line, { getTile })).rejects.toThrow("offline")
+    await expect(result).rejects.toThrow("offline")
+    const startedAtFailure = started
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    expect(late).toEqual([])
+    expect(aborted).toBe(startedAtFailure - 1)
+    expect(started).toBe(startedAtFailure)
   })
 
   test("aborting stops the load", async () => {

@@ -107,8 +107,8 @@
       <form method="dialog">
         <h2>Settings</h2>
 
-        <section class="setting" aria-labelledby="elevation-heading">
-          <h3 id="elevation-heading">Elevation</h3>
+        <fieldset class="setting">
+          <legend>Elevation</legend>
           <p class="hint">Where the profile, elevation and grade come from. Applies immediately.</p>
           <label class="choice">
             <input type="radio" name="elevation" value="gpx" />
@@ -118,8 +118,11 @@
             <input type="radio" name="elevation" value="terrain" />
             <span>Terrain model (EU-DEM / SRTM, ~25–30 m)</span>
           </label>
-          <p id="elevation-status" class="hint" role="status"></p>
-        </section>
+          <div class="elevation-status">
+            <p id="elevation-status" class="hint" role="status"></p>
+            <button id="elevation-retry" class="button small" type="button" hidden>Retry</button>
+          </div>
+        </fieldset>
 
         <section class="setting" aria-labelledby="key-heading">
           <h3 id="key-heading">Google Maps API key</h3>
@@ -137,7 +140,7 @@
 
         <div class="dialog-actions">
           <button id="key-clear" class="button" type="button">Use built-in key</button>
-          <button value="cancel" class="button" type="submit">Cancel</button>
+          <button value="cancel" class="button" type="submit">Close</button>
           <button id="key-save" class="button primary" type="button">Save and reload</button>
         </div>
       </form>

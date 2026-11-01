@@ -140,42 +140,20 @@ export function densify(points: readonly CoursePoint[], maxSpacing = MAX_SPACING
 // Loading
 
 /**
- * Wraps `getTile` so each tile is requested once. The cache holds the promise,
- * not the result, so concurrent requests for one tile share a single fetch. A
- * failed request is dropped so a retry can try again.
+ * Runs `task` over `items`, at most `limit` at a time. The first failure
+ * rejects the run; aborting `signal` stops new items from starting.
  */
-export function cachedTiles(getTile: GetTile): GetTile {
-  const cache = new Map<string, Promise<Tile>>()
-  return (z, x, y, signal) => {
-    const key = tileKey(z, x, y)
-    let tile = cache.get(key)
-    if (!tile) {
-      tile = getTile(z, x, y, signal)
-      cache.set(key, tile)
-      tile.catch(() => cache.delete(key))
-    }
-    return tile
-  }
-}
-
-/** Runs `task` over `items`, at most `limit` at a time; stops starting new ones after a failure. */
 async function runPool<T>(
   items: readonly T[],
   limit: number,
   task: (item: T) => Promise<void>,
-  signal?: AbortSignal,
+  signal: AbortSignal,
 ): Promise<void> {
   let next = 0
-  let failed = false
   const worker = async () => {
-    while (!failed && next < items.length) {
-      signal?.throwIfAborted()
-      try {
-        await task(nth(items, next++))
-      } catch (e) {
-        failed = true
-        throw e
-      }
+    while (next < items.length) {
+      signal.throwIfAborted()
+      await task(nth(items, next++))
     }
   }
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
@@ -185,13 +163,15 @@ export interface TerrainOptions {
   getTile: GetTile
   /** Aborts outstanding tile requests; the returned promise then rejects. */
   signal?: AbortSignal
-  /** Called as tiles arrive, with how many are done of how many are needed. */
+  /** Called as tiles arrive, with how many are done of how many are needed; never after a failure. */
   onProgress?: (done: number, total: number) => void
 }
 
 /**
  * `points` densified to at most `MAX_SPACING` between neighbours, each with
  * its elevation taken from the terrain model (the GPX's own is discarded).
+ * Each tile is fetched once. One failed tile fails the load and cancels the
+ * requests still in flight, so they stop downloading and reporting progress.
  */
 export async function withTerrainElevation(
   points: readonly CoursePoint[],
@@ -201,21 +181,34 @@ export async function withTerrainElevation(
   const needed = new Set<string>()
   for (const p of dense) for (const key of tilesFor(p.lat, p.lng, TERRAIN_ZOOM)) needed.add(key)
 
-  const fetchTile = cachedTiles(getTile)
+  // Aborted by the caller, or by this load's own first failure.
+  const stop = new AbortController()
+  const forward = () => stop.abort(signal?.reason)
+  if (signal?.aborted) forward()
+  signal?.addEventListener("abort", forward)
+
   const tiles = new Map<string, Tile>()
   const keys = [...needed]
   onProgress?.(0, keys.length)
-  await runPool(
-    keys,
-    CONCURRENCY,
-    async (key) => {
-      const parts = key.split("/").map(Number)
-      tiles.set(key, await fetchTile(nth(parts, 0), nth(parts, 1), nth(parts, 2), signal))
-      onProgress?.(tiles.size, keys.length)
-    },
-    signal,
-  )
-  signal?.throwIfAborted()
+  try {
+    await runPool(
+      keys,
+      CONCURRENCY,
+      async (key) => {
+        const parts = key.split("/").map(Number)
+        const tile = await getTile(nth(parts, 0), nth(parts, 1), nth(parts, 2), stop.signal)
+        stop.signal.throwIfAborted()
+        tiles.set(key, tile)
+        onProgress?.(tiles.size, keys.length)
+      },
+      stop.signal,
+    )
+  } catch (e) {
+    stop.abort(e)
+    throw e
+  } finally {
+    signal?.removeEventListener("abort", forward)
+  }
 
   return dense.map((p) => ({
     ...p,

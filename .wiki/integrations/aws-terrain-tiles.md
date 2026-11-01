@@ -30,7 +30,9 @@ The app reads zoom 13 (≈15 m pixels at 39°N). Measured on Estrada do Atalho,
 z13 is within 1 m of z14 and z15, and z14 matched OpenTopoData's EU-DEM 25 m
 values to the metre: higher zooms only resample the same 25–30 m data, at four
 times the tiles per step. An 80 km course needs a few dozen z13 tiles of about
-100 KB each, cached by the browser between reloads.
+100 KB each. The bucket sends no `Cache-Control`, only a `Last-Modified`
+from 2017, so whether a reload refetches them is down to the browser's
+heuristic freshness; the app keeps no copy of its own.
 
 # Used by
 

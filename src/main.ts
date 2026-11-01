@@ -73,8 +73,9 @@ const elevationSource = (): ElevationSource =>
  */
 let onElevationChange: () => void = () => {}
 
-function setElevationStatus(text: string): void {
+function setElevationStatus(text: string, canRetry = false): void {
   $("elevation-status").textContent = text
+  $("elevation-retry").hidden = !canRetry
 }
 
 function openSettings(reason?: string): void {
@@ -100,6 +101,8 @@ function setupSettings(): void {
       onElevationChange()
     })
   }
+  // After a failed load the terrain radio is still checked, so picking it again fires nothing.
+  $("elevation-retry").addEventListener("click", () => onElevationChange())
   $("open-settings").addEventListener("click", () => openSettings())
   $("key-builtin").textContent = !builtInKey
     ? "This copy of the app has no built-in key, so a key of your own is required."
@@ -112,6 +115,12 @@ function setupSettings(): void {
     location.reload()
   })
   $("key-save").addEventListener("click", () => {
+    // Settings also holds the elevation choice, which applies on its own; a
+    // reload here would only cost a new billed Maps load.
+    if (input.value.trim() === (userKey() ?? "")) {
+      $<HTMLDialogElement>("settings").close()
+      return
+    }
     if (!input.value.trim()) {
       input.focus()
       return
@@ -330,11 +339,12 @@ async function main(): Promise<void> {
         setElevationStatus("")
         showElevation(terrain)
       },
-      () => {
-        // Aborted, or superseded by a newer choice or course.
+      (error: unknown) => {
+        // A newer choice or course aborted this load and has taken over.
         if (mine !== generation) return
         terrainLoad = null
-        setElevationStatus("Couldn't load terrain elevation; showing the GPX file's.")
+        console.warn("Terrain elevation failed to load:", error)
+        setElevationStatus("Couldn't load terrain elevation; showing the GPX file's.", true)
         toast("Couldn't load terrain elevation. Showing the GPX file's instead.")
       },
     )
